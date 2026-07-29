@@ -1,0 +1,8 @@
+{
+  "name": "Fourdoor AI Growth Engine",
+  "description": "AI-powered B2B growth engine for automated lead generation, content creation, engagement, and security scanning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

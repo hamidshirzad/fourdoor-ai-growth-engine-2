@@ -1,0 +1,40 @@
+{
+  "name": "fourdoor-ai-backend",
+  "version": "1.0.0",
+  "description": "Fourdoor AI Growth Engine Backend",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "migrate": "node src/db/migrations.js",
+    "seed": "node src/db/seed.js",
+    "check": "node --check src/index.js && node --check src/services/aiService.js && node --check src/services/billingService.js && node --check src/config/constants.js && node --check src/services/leadService.js && node --check src/services/scheduler.js && node --check src/services/dynamoService.js && node --check src/services/logService.js && node --check src/services/workosService.js && node --check src/routes/auth.js",
+    "test": "node --test \"src/**/*.test.js\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1079.0",
+    "@aws-sdk/client-s3": "^3.500.0",
+    "@aws-sdk/lib-dynamodb": "^3.1079.0",
+    "@aws-sdk/s3-request-presigner": "^3.500.0",
+    "@workos-inc/node": "^10.7.0",
+    "axios": "^1.7.9",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.6.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
+    "openai": "^4.77.0",
+    "pg": "^8.11.3",
+    "uuid": "^9.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

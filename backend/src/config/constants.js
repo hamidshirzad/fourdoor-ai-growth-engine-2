@@ -1,0 +1,5 @@
+export const QUALIFICATION_THRESHOLD = 70;
+
+export const MAX_OUTREACH_SUBJECT_LEN = 120;
+export const MAX_OUTREACH_BODY_LEN = 2000;
+export const MAX_ENGAGEMENT_REPLY_LEN = 1000;
