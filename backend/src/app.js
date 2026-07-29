@@ -24,10 +24,24 @@ app.set('trust proxy', 1);
 app.use(helmet({
   contentSecurityPolicy: false,
 }));
+const corsOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: true,
+  // `origin: true` reflected whatever Origin the caller sent, which is an
+  // allow-all for credentialed requests. Pin it to CORS_ORIGIN in production;
+  // with the variable unset (local dev) reflection is kept for convenience.
+  origin: corsOrigins.length ? corsOrigins : true,
   credentials: true
 }));
+
+// Stripe signs the raw request bytes, so this route must be registered before
+// express.json() gets a chance to parse and discard them.
+app.use('/api/billing/stripe/webhook', express.raw({ type: 'application/json' }));
+app.use('/billing/stripe/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json({ limit: '1mb' }));
 app.use(rateLimit({
   windowMs: 60 * 1000,
@@ -107,6 +121,22 @@ app.get('/analytics', authenticateToken, (req, res, next) => {
 app.post('/scan', authenticateToken, (req, res, next) => {
   req.url = '/scan';
   securityRoutes(req, res, next);
+});
+
+// Error handler. Without this, a rejected asyncHandler fell through to
+// Express's default handler, which replies with an HTML stack trace — the
+// frontend's response.json() then failed and every fault surfaced as a generic
+// "API error". No 404 handler is registered on purpose: server.js mounts this
+// app ahead of the Next.js request handler and unmatched paths must fall
+// through to it.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err.code === '23505') {
+    return res.status(409).json({ error: 'Record already exists' });
+  }
+  const status = err.message?.includes('not configured') ? 503 : (err.status || 400);
+  console.error(err);
+  res.status(status).json({ error: err.message || 'Internal server error' });
 });
 
 export default app;

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Fourdoor AI Growth Engine is a SaaS MVP for autonomous marketing and lead generation. It generates platform-specific social content via AI agents, qualifies inbound leads, drafts personalized outreach, routes hot prospects to Calendly, and manages PayPal subscriptions.
+Fourdoor AI Growth Engine is a SaaS MVP for autonomous marketing and lead generation. It generates platform-specific social content via AI agents, qualifies inbound leads, drafts personalized outreach, routes hot prospects to Calendly, and manages subscriptions through Stripe (with legacy PayPal support).
 
 ## Repository Layout
 
@@ -142,6 +142,48 @@ Optional WorkOS integration following the same graceful-fallback pattern as S3/A
 - **Audit Logs** — `logAgent()` mirrors each agent activity event to WorkOS Audit Logs (event identity + status only; full payloads stay in Postgres/DynamoDB). Requires `WORKOS_ORGANIZATION_ID`.
 - **AuthKit SSO** — `GET /api/auth/sso/authorize` redirects to WorkOS AuthKit; `GET /api/auth/sso/callback` exchanges the code, upserts a local user (matched by `workos_id`, then email), and redirects to the frontend `/sso-callback` page with a **locally signed JWT** in the URL fragment. The local JWT remains the session token, so all existing middleware and protected routes work unchanged. SSO-only users have `password_hash = NULL` and cannot password-login.
 
+### Billing (`stripeService.js`, `billingService.js`)
+
+Stripe is the active provider; `billingService.js` keeps PayPal working for
+accounts already subscribed through it. `POST /api/billing/subscribe` picks
+Stripe whenever `STRIPE_SECRET_KEY` is set and returns a provider-agnostic
+`{ subscription: { approveUrl } }` that the frontend simply redirects to.
+
+Three rules hold this together, and each one exists because the previous
+implementation broke it:
+
+1. **Starting checkout never grants a plan.** `createCheckoutSession` and the
+   PayPal `createSubscription` only ever write `pending`. Activation happens in
+   `handleWebhook()` against a signature-verified event. The old code marked
+   users `active` whenever the provider was unconfigured *or* the API call
+   threw — handing out paid plans to anyone who clicked Subscribe.
+2. **Unverified webhooks are rejected.** Both webhook routes return 400 unless
+   the signature verifies. `verifyWebhook()` previously returned
+   `{ skipped: true }` when `PAYPAL_WEBHOOK_ID` was unset and the route treated
+   that as permission to proceed, leaving an unauthenticated endpoint that
+   could move any account onto a paid plan. There is no skip path now.
+3. **Checkout is hosted by the provider.** No card fields exist in this app.
+   `/billing` redirects to Stripe Checkout and reads plan state back from the
+   server; it does not optimistically set `active`.
+
+Stripe's webhook is mounted with `express.raw` in `app.js` *before*
+`express.json`, because the signature is computed over the unparsed bytes.
+Events are deduplicated through `processed_webhook_events`, so Stripe's retries
+are idempotent. Plan/price mapping is derived from the price id on the
+subscription, never from anything the client sends. `getPlans()` strips price
+ids and exposes a `configured` boolean instead.
+
+### Database connection (`db/pool.js`)
+
+`pg-mem` is a **local development convenience only**, gated behind
+`ALLOW_IN_MEMORY_DB=true` and refused under `NODE_ENV=production`. It used to
+engage automatically whenever Postgres was unreachable — including in
+production, where it turned a connection blip into silent data loss: the API
+kept answering while signups and subscription changes were written to memory
+and lost on restart. A missing or unreachable `DATABASE_URL` is now a hard
+startup failure, and `checkDatabaseHealth()` reports an in-memory database as
+unhealthy so `/health/ready` fails honestly.
+
 ### Plan Limits
 
 Enforced server-side in `contentService.js`:
@@ -182,8 +224,12 @@ Migrations run sequentially from a plain array in `migrations.js` (no migration 
 | `WORKOS_REDIRECT_URI` | AuthKit callback URL (default `http://localhost:5000/api/auth/sso/callback`); must be registered in the WorkOS dashboard |
 | `FRONTEND_URL` | Where the SSO callback redirects with the session token (falls back to first `CORS_ORIGIN` entry) |
 | `DISABLE_SCHEDULERS` | Set to `true` to suppress cron jobs (useful in test/CI) |
-| `CORS_ORIGIN` | Comma-separated list of allowed origins |
-| `NEXT_PUBLIC_API_URL` | Frontend → backend base URL (default `http://localhost:5000`) |
+| `CORS_ORIGIN` | Comma-separated list of allowed origins. Unset means "reflect any Origin", which is an allow-all for credentialed requests — always set it in production |
+| `NEXT_PUBLIC_API_URL` | Frontend → backend origin. **Required in production.** Inlined at build time, so the frontend must be rebuilt after changing it. Unset means the login page disables itself and says so, rather than calling the Vercel deployment where `/api/auth/login` 404s |
+| `ALLOW_IN_MEMORY_DB` | Dev/test only; opts into the `pg-mem` fallback. Ignored under `NODE_ENV=production` |
+| `STRIPE_SECRET_KEY` | Enables Stripe Checkout; when set it is preferred over PayPal |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret for `/api/billing/stripe/webhook`. Without it no subscription can activate |
+| `STRIPE_STARTER_PRICE_ID` / `STRIPE_PRO_PRICE_ID` / `STRIPE_AGENCY_PRICE_ID` | Recurring price ids; a plan without one is shown as unavailable |
 
 ### Supabase (optional)
 

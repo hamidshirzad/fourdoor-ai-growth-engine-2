@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Navigation from '../components/Navigation';
 import { useAuthStore } from '../lib/store';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, isApiConfigured } from '../lib/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('demo@fourdoor.ai');
@@ -39,6 +39,10 @@ export default function LoginPage() {
   };
 
   const handleSso = () => {
+    if (!isApiConfigured) {
+      setError('Single sign-on is unavailable: this deployment has no API server configured.');
+      return;
+    }
     window.location.href = `${API_BASE_URL}/api/auth/sso/authorize`;
   };
 
@@ -59,10 +63,18 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-neutral-50">Welcome Back</h1>
           <p className="mt-1 text-sm text-neutral-400">Sign in to your AI Growth operations workspace.</p>
 
+          {!isApiConfigured && (
+            <div className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
+              Sign-in is unavailable: this deployment has no API server configured.
+              Set <code className="font-mono text-xs">NEXT_PUBLIC_API_URL</code> to the
+              backend URL and redeploy.
+            </div>
+          )}
+
           <button
             type="button"
             onClick={handleDemoLogin}
-            disabled={isLoading || isDemoLoading}
+            disabled={isLoading || isDemoLoading || !isApiConfigured}
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-4 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
           >
             <span>⚡</span>
@@ -101,7 +113,7 @@ export default function LoginPage() {
               />
             </div>
             <button
-              disabled={isLoading || isDemoLoading}
+              disabled={isLoading || isDemoLoading || !isApiConfigured}
               className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-orange-400 transition-colors disabled:opacity-50"
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
