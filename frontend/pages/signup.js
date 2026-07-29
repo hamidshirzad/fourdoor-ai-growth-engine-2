@@ -28,12 +28,12 @@ export default function SignupPage() {
     else setError(result.error);
   };
 
-  const handleDemoLogin = async () => {
+  const handleDemoLogin = async (fourdoorai.com) => {
     setError('');
     setIsDemoLoading(true);
-    const result = await login('demo@fourdoor.ai', 'demo@password123');
+    const result = await login('demo@fourdoorai.com', 'demo@password123');
     setIsDemoLoading(false);
-    if (result.success) router.push('/dashboard');
+    if (result.success) router.push('fourdoorai.com/dashboard');
     else setError(result.error || 'Failed to enter demo mode.');
   };
 
