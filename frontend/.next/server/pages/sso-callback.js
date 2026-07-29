@@ -1,0 +1,10 @@
+var R=require("../chunks/ssr/[turbopack]_runtime.js")("server/pages/sso-callback.js")
+R.c("server/chunks/ssr/_075vofk._.js")
+R.c("server/chunks/ssr/node_modules_next_dist_1n3-cif._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0bz6gek._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__1e4rvbm._.js")
+R.c("server/chunks/ssr/[externals]__0cary5o._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__18v5uhp._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__1wh6pv-._.js")
+R.m(62808)
+module.exports=R.m(62808).exports
