@@ -84,24 +84,77 @@ npm ci
 npm run migrate
 ```
 
-## Backend on Railway or Render
+## Database on Neon
 
-1. Create a Node.js service with root directory `backend`.
-2. Use build command `npm ci`.
-3. Use start command `npm start`.
-4. Add the backend environment variables above. `DATABASE_URL` and `JWT_SECRET`
-   are mandatory — the service now fails fast if it cannot reach PostgreSQL
-   rather than quietly serving from an in-memory database whose contents vanish
-   on the next restart.
-5. Set `CORS_ORIGIN` to the frontend origins, comma-separated
-   (`https://www.fourdoorai.com,https://fourdoorai.com`). Without it the API
-   reflects any Origin back, which is an allow-all for credentialed requests.
-6. After deploy, run `npm run migrate` once from the service shell.
-7. Register the webhook endpoints against the public backend URL:
+1. Create a Neon project and copy the **pooled** connection string — the host
+   contains `-pooler`. The direct endpoint holds a connection open and keeps the
+   compute awake.
+2. Ask for `sslmode=verify-full&channel_binding=require`. Neon serves a
+   publicly-trusted certificate on a real hostname, and plain `sslmode=require`
+   makes `pg` print a deprecation warning on every connection.
+3. Set `DATABASE_POOL_MIN=0` so the compute can scale to zero. A non-zero idle
+   floor pins a connection open forever.
+
+```
+DATABASE_URL=postgresql://<role>:<password>@ep-<id>-pooler.<region>.aws.neon.tech/<db>?sslmode=verify-full&channel_binding=require
+DATABASE_POOL_MIN=0
+```
+
+`DATABASE_SSL` is ignored when the connection string carries its own `sslmode=`
+— `pg` lets the parsed connection string win over the pool's `ssl` config.
+
+## Backend on Render
+
+The repo ships a blueprint at `render.yaml`. Render → **New → Blueprint**, point
+it at this repository, and it creates the service with the right root directory,
+health check and start command. Fill in the values it prompts for
+(`DATABASE_URL`, the Stripe keys); `JWT_SECRET` is generated for you.
+
+To configure it by hand instead:
+
+| Setting | Value |
+|---|---|
+| Root Directory | `backend` |
+| Build Command | `npm ci` |
+| Start Command | `npm run migrate && npm start` |
+| Health Check Path | `/health/ready` |
+
+Notes on the choices:
+
+- **Migrations run on every boot.** They are idempotent (`CREATE TABLE IF NOT
+  EXISTS`, `ADD COLUMN IF NOT EXISTS`), and the free tier has no shell to run
+  them from by hand. An unreachable database exits non-zero, so `&& npm start`
+  is skipped and Render fails the deploy — a bad `DATABASE_URL` cannot slip
+  through. A *failing migration statement*, however, is rolled back and logged
+  without a non-zero exit, so the service would start against an incomplete
+  schema. Check the deploy log for `All migrations completed successfully`
+  after the first deploy rather than trusting the green status alone.
+- **`/health/ready` fails when the database is unreachable**, so a bad
+  `DATABASE_URL` surfaces as a failed deploy instead of a service that answers
+  every request against an empty database.
+- **`DATABASE_URL` and `JWT_SECRET` are mandatory.** The service refuses to
+  start without a reachable PostgreSQL rather than silently falling back to an
+  in-memory database whose contents vanish on the next restart.
+- **Set `CORS_ORIGIN`** to the frontend origins, comma-separated
+  (`https://www.fourdoorai.com,https://fourdoorai.com`). Unset means the API
+  reflects any Origin back, which is an allow-all for credentialed requests.
+- **Seeding is not automatic.** `npm run seed` creates the demo account
+  (`demo@fourdoor.ai`) whose password is published in this repo. Run it once by
+  hand if you want the login page's "Try Demo Mode" button to work.
+- **Schedulers and the free tier don't mix.** The three `node-cron` jobs start
+  with the process, and a free instance sleeps when idle, so they will not fire
+  on schedule. Use a paid instance or set `DISABLE_SCHEDULERS=true` and trigger
+  the work externally. Free instances also cold-start for ~30–60 s, which looks
+  like a hung login form on the first request.
+
+After the service is live:
+
+1. Register the webhook endpoints against its public URL:
    - Stripe: `/api/billing/stripe/webhook`
    - PayPal: `/api/billing/webhook`
-8. Copy the deployed URL into the frontend's `NEXT_PUBLIC_API_URL` and redeploy
-   the frontend — it is baked in at build time.
+2. Copy the service URL into the frontend's `NEXT_PUBLIC_API_URL` **and redeploy
+   the frontend** — the value is inlined at build time, so setting it without a
+   rebuild changes nothing.
 
 ## Stripe subscriptions
 

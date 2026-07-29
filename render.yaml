@@ -1,0 +1,74 @@
+# Render blueprint for the Express API (backend/).
+#
+# The frontend is NOT deployed here — it lives in its own Vercel project with
+# Root Directory `frontend`. The two are separate services on separate origins,
+# which is why the frontend needs NEXT_PUBLIC_API_URL pointing at whatever URL
+# this service gets, and why this service needs CORS_ORIGIN pointing back.
+#
+# Create via Render -> New -> Blueprint, pointed at this repository.
+services:
+  - type: web
+    name: fourdoor-ai-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    # Migrations run on every boot. They are idempotent (CREATE TABLE IF NOT
+    # EXISTS / ADD COLUMN IF NOT EXISTS), and Render's free tier has no shell to
+    # run them from by hand.
+    #
+    # Seeding is deliberately NOT here: `npm run seed` creates the demo account
+    # (demo@fourdoor.ai) whose password is published in this repo's docs. Run it
+    # once by hand if you want "Try Demo Mode" to work in production.
+    startCommand: npm run migrate && npm start
+    # Readiness fails when the database is unreachable, so a bad DATABASE_URL
+    # shows up as a failed deploy rather than a service that answers with an
+    # empty database.
+    healthCheckPath: /health/ready
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # --- Required. sync:false means Render prompts for the value and it is
+      # never committed to git. ---
+      - key: DATABASE_URL
+        sync: false          # Neon POOLED URI (host contains "-pooler"), with
+                             # ?sslmode=verify-full&channel_binding=require
+      - key: JWT_SECRET
+        generateValue: true  # Render generates a strong secret on first deploy
+      - key: CORS_ORIGIN
+        value: https://www.fourdoorai.com,https://fourdoorai.com
+      - key: FRONTEND_URL
+        value: https://www.fourdoorai.com
+
+      # Neon scales its compute to zero; a non-zero idle floor would hold a
+      # connection open forever and keep it awake.
+      - key: DATABASE_POOL_MIN
+        value: "0"
+
+      # --- Stripe. Without STRIPE_WEBHOOK_SECRET no subscription can activate,
+      # by design: activation requires a signature-verified event. Register the
+      # endpoint at <this-service-url>/api/billing/stripe/webhook ---
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_STARTER_PRICE_ID
+        sync: false
+      - key: STRIPE_PRO_PRICE_ID
+        sync: false
+      - key: STRIPE_AGENCY_PRICE_ID
+        sync: false
+
+      # --- Optional. Agents fall back to deterministic output without a key. ---
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+
+      # The three node-cron jobs start with the process. On the free plan the
+      # service sleeps when idle, so they will not fire on schedule — set this
+      # to "true" and drive them externally, or move to a paid instance.
+      - key: DISABLE_SCHEDULERS
+        value: "false"
