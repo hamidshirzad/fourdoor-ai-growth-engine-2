@@ -1,0 +1,12 @@
+var R=require("../chunks/ssr/[turbopack]_runtime.js")("server/pages/client-portal.js")
+R.c("server/chunks/ssr/_0itapgl._.js")
+R.c("server/chunks/ssr/_1m3m261._.js")
+R.c("server/chunks/ssr/_0kmccnf._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0bz6gek._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__1e4rvbm._.js")
+R.c("server/chunks/ssr/node_modules_next_dist_0thf2wq._.js")
+R.c("server/chunks/ssr/[externals]__0cary5o._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__18v5uhp._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__1wh6pv-._.js")
+R.m(39235)
+module.exports=R.m(39235).exports

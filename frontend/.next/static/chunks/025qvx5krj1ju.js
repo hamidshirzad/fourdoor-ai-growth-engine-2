@@ -1,0 +1,7 @@
+__turbopack_load_page_chunks__("/sso-callback", [
+  "static/chunks/30qgav1yv5kan.js",
+  "static/chunks/3ftp7x77j5jv2.js",
+  "static/chunks/2ap675w70hk-p.js",
+  "static/chunks/2vmymyre-597k.js",
+  "static/chunks/turbopack-3rl0ujkqpqec_.js"
+])
