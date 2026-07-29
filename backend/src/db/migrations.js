@@ -187,6 +187,22 @@ const migrations = [
   // WorkOS AuthKit SSO: SSO-only users have no local password.
   'ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;',
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS workos_id VARCHAR(255) UNIQUE;',
+  // Stripe subscriptions. The customer id is reused across checkouts so a
+  // returning user keeps one customer record instead of accumulating duplicates.
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);',
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(255);',
+  'CREATE INDEX IF NOT EXISTS idx_users_stripe_customer ON users(stripe_customer_id);',
+  'CREATE INDEX IF NOT EXISTS idx_users_stripe_subscription ON users(stripe_subscription_id);',
+  // Webhook idempotency: Stripe retries deliveries, and a replayed event must
+  // not re-apply a plan change. The primary key makes reprocessing a no-op.
+  `
+    CREATE TABLE IF NOT EXISTS processed_webhook_events (
+      id VARCHAR(255) PRIMARY KEY,
+      provider VARCHAR(30) NOT NULL,
+      event_type VARCHAR(120),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `,
   `
     CREATE TABLE IF NOT EXISTS outreach_templates (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

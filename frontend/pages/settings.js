@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import AppShell from '../components/AppShell';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { apiCall } from '../lib/api';
@@ -32,14 +33,15 @@ export default function SettingsPage() {
               <p>Plan: {user?.plan} / {user?.subscription_status}</p>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <a
-                href="https://billing.stripe.com/p/login/28E4gydJufrC57s7cr7Re00"
-                target="_blank"
-                rel="noreferrer"
+              {/* Routed through /billing so the portal session is created for
+                  this signed-in customer. The previous hardcoded portal link
+                  asked every user to look their account up by email. */}
+              <Link
+                href="/billing"
                 className="focus-ring inline-flex items-center gap-1.5 rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-orange-400"
               >
-                <span>Stripe Billing Portal</span>
-              </a>
+                <span>Billing & subscription</span>
+              </Link>
               <button onClick={logout} className="focus-ring rounded border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-400 hover:bg-red-500/10">Logout</button>
             </div>
           </section>

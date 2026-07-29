@@ -8,7 +8,7 @@ const PAYPAL_API = process.env.PAYPAL_MODE === 'live'
 const plans = {
   starter: {
     key: 'starter',
-    planId: process.env.PAYPAL_STARTER_PLAN_ID || 'P-STARTER-DEFAULT',
+    planId: process.env.PAYPAL_STARTER_PLAN_ID,
     name: 'Starter',
     price: 29,
     currency: 'EUR',
@@ -16,7 +16,7 @@ const plans = {
   },
   pro: {
     key: 'pro',
-    planId: process.env.PAYPAL_PRO_PLAN_ID || 'P-PRO-DEFAULT',
+    planId: process.env.PAYPAL_PRO_PLAN_ID,
     name: 'Pro',
     price: 79,
     currency: 'EUR',
@@ -24,7 +24,7 @@ const plans = {
   },
   agency: {
     key: 'agency',
-    planId: process.env.PAYPAL_AGENCY_PLAN_ID || 'P-AGENCY-DEFAULT',
+    planId: process.env.PAYPAL_AGENCY_PLAN_ID,
     name: 'Agency',
     price: 199,
     currency: 'EUR',
@@ -50,59 +50,68 @@ async function paypalToken() {
   return response.data.access_token;
 }
 
+/**
+ * Starts a PayPal subscription and returns its approval URL.
+ *
+ * This function used to fall back to marking the user `active` on a hardcoded
+ * checkout link whenever PayPal was unconfigured or the API call failed, which
+ * handed out paid plans for free. There is no fallback now: if PayPal cannot
+ * create a real subscription, this throws and the user's plan is untouched.
+ * Even on success the status is only `pending` — `handleWebhook()` promotes it
+ * to `active` once PayPal confirms the money.
+ */
 export async function createSubscription(userId, planName, returnUrl, cancelUrl) {
   const plan = plans[planName];
   if (!plan) throw new Error('Invalid plan');
-
-  let approveUrl = 'https://buy.stripe.com/aFacN448U93efM6dAP7Re01';
-  let subId = `sub_${planName}_${Date.now()}`;
-  let subStatus = 'active';
-
-  if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET && process.env[`PAYPAL_${planName.toUpperCase()}_PLAN_ID`]) {
-    try {
-      const token = await paypalToken();
-      const response = await axios.post(`${PAYPAL_API}/v1/billing/subscriptions`, {
-        plan_id: plan.planId,
-        custom_id: userId,
-        application_context: {
-          brand_name: 'Fourdoor AI Growth Engine',
-          locale: 'en-US',
-          shipping_preference: 'NO_SHIPPING',
-          user_action: 'SUBSCRIBE_NOW',
-          return_url: returnUrl,
-          cancel_url: cancelUrl || returnUrl
-        }
-      }, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      subId = response.data.id;
-      approveUrl = response.data.links?.find((link) => link.rel === 'approve')?.href || approveUrl;
-      subStatus = 'pending';
-    } catch (err) {
-      console.warn('PayPal subscription endpoint error, using direct checkout fallback:', err.message);
-      approveUrl = returnUrl || approveUrl;
-    }
-  } else {
-    // Direct Stripe / Fallback subscription activation when PayPal is unconfigured
-    approveUrl = returnUrl || approveUrl;
+  if (!plan.planId) {
+    throw new Error(`PayPal is not configured for the ${planName} plan. Set PAYPAL_${planName.toUpperCase()}_PLAN_ID.`);
   }
+
+  const token = await paypalToken();
+  const response = await axios.post(`${PAYPAL_API}/v1/billing/subscriptions`, {
+    plan_id: plan.planId,
+    custom_id: userId,
+    application_context: {
+      brand_name: 'Fourdoor AI Growth Engine',
+      locale: 'en-US',
+      shipping_preference: 'NO_SHIPPING',
+      user_action: 'SUBSCRIBE_NOW',
+      return_url: returnUrl,
+      cancel_url: cancelUrl || returnUrl
+    }
+  }, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  const approveUrl = response.data.links?.find((link) => link.rel === 'approve')?.href;
+  if (!approveUrl) throw new Error('PayPal did not return an approval URL');
 
   await pool.query(
     `UPDATE users
-     SET plan = $1, subscription_status = $2, paypal_subscription_id = $3, updated_at = NOW()
-     WHERE id = $4`,
-    [planName, subStatus, subId, userId]
+     SET plan = $1, subscription_status = 'pending', paypal_subscription_id = $2, updated_at = NOW()
+     WHERE id = $3`,
+    [planName, response.data.id, userId]
   );
 
-  return { id: subId, approveUrl, status: subStatus };
+  return { id: response.data.id, approveUrl, status: 'pending' };
 }
 
+/**
+ * Verifies a PayPal webhook signature.
+ *
+ * Returns `{ verified: false }` when PAYPAL_WEBHOOK_ID is unset. It used to
+ * return `{ skipped: true }`, which the route treated as permission to
+ * proceed — leaving an unauthenticated endpoint that could move any account
+ * onto a paid plan by posting a forged event. Callers must reject anything
+ * that is not `verified: true`.
+ */
 export async function verifyWebhook(headers, body) {
-  if (!process.env.PAYPAL_WEBHOOK_ID) return { verified: false, skipped: true };
+  if (!process.env.PAYPAL_WEBHOOK_ID) {
+    return { verified: false, reason: 'PAYPAL_WEBHOOK_ID is not configured' };
+  }
   const token = await paypalToken();
   const response = await axios.post(`${PAYPAL_API}/v1/notifications/verify-webhook-signature`, {
     auth_algo: headers['paypal-auth-algo'],
@@ -124,11 +133,15 @@ export async function handleWebhook(event) {
   const subscriptionId = resource.id;
   const userId = resource.custom_id || resource.custom;
 
-  if (['BILLING.SUBSCRIPTION.ACTIVATED', 'BILLING.SUBSCRIPTION.CREATED'].includes(type)) {
+  // Only ACTIVATED means PayPal has taken the money. CREATED fires when the
+  // subscription record exists but has not been approved or paid, so treating
+  // it as active granted the plan before any payment.
+  if (type === 'BILLING.SUBSCRIPTION.ACTIVATED') {
     await pool.query(
       `UPDATE users
        SET subscription_status = 'active', paypal_subscription_id = $1, updated_at = NOW()
-       WHERE id::text = $2 OR paypal_subscription_id = $1`,
+       WHERE paypal_subscription_id = $1
+          OR ($2::uuid IS NOT NULL AND id = $2::uuid)`,
       [subscriptionId, userId || null]
     );
   }

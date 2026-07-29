@@ -1,6 +1,5 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
-import { newDb } from 'pg-mem';
 import crypto from 'crypto';
 
 dotenv.config();
@@ -9,9 +8,30 @@ const { Pool } = pg;
 
 let activePool = null;
 let isInMemory = false;
+let memFallbackPool = null;
 
-function createInMemoryPool() {
-  console.log('[DB] Initializing in-memory pg-mem database...');
+const isProduction = process.env.NODE_ENV === 'production';
+
+/**
+ * The in-memory pg-mem database is a **local development convenience only**.
+ *
+ * It used to engage automatically whenever Postgres was unreachable, including
+ * in production. That turned a connection problem into silent data loss: the
+ * API kept answering, signups and subscription changes were written to a
+ * database that lives in RAM, and everything disappeared on the next restart.
+ * A missing DATABASE_URL should stop the service, not fake one.
+ *
+ * Set ALLOW_IN_MEMORY_DB=true to opt in; it is refused under NODE_ENV=production.
+ */
+function inMemoryAllowed() {
+  if (isProduction) return false;
+  return process.env.ALLOW_IN_MEMORY_DB === 'true' || process.env.NODE_ENV === 'test';
+}
+
+// Imported lazily so production installs never need pg-mem present at all.
+async function createInMemoryPool() {
+  console.warn('[DB] Using the in-memory pg-mem database. Data will not persist.');
+  const { newDb } = await import('pg-mem');
   isInMemory = true;
   const memDb = newDb();
 
@@ -26,65 +46,69 @@ function createInMemoryPool() {
   return new MemPool();
 }
 
+function sslConfig() {
+  // A connection string carrying its own sslmode= wins over this setting,
+  // because pg merges the parsed connection string over the pool config.
+  const explicit = process.env.DATABASE_SSL;
+  if (explicit === 'true') return { rejectUnauthorized: false };
+  if (explicit === 'false') return false;
+  return isProduction || process.env.AWS_REGION ? { rejectUnauthorized: false } : false;
+}
+
 async function initPool() {
   if (activePool) return activePool;
 
   if (process.env.DATABASE_URL) {
-    try {
-      const pgPool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
-        max: 10,
-        connectionTimeoutMillis: 2000,
-      });
+    const pgPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: sslConfig(),
+      max: Number(process.env.DATABASE_POOL_MAX || 10),
+      min: Number(process.env.DATABASE_POOL_MIN ?? (isProduction ? 5 : 2)),
+      connectionTimeoutMillis: Number(process.env.DATABASE_CONNECT_TIMEOUT_MS || 10000)
+    });
 
-      // Test connection quickly
+    try {
       const client = await pgPool.connect();
       await client.query('SELECT 1');
       if (client.release) client.release();
-      console.log('[DB] Connected to PostgreSQL database.');
+      console.log('[DB] Connected to PostgreSQL.');
       activePool = pgPool;
       return activePool;
     } catch (err) {
-      console.warn(`[DB] PostgreSQL connection failed (${err.message}). Falling back to in-memory database.`);
+      await pgPool.end().catch(() => {});
+      if (!inMemoryAllowed()) {
+        // Fail loudly. A half-working API backed by a phantom database is
+        // worse than an honest outage, and /health/ready will report it.
+        throw new Error(`Cannot connect to PostgreSQL: ${err.message}`);
+      }
+      console.warn(`[DB] PostgreSQL connection failed (${err.message}).`);
     }
+  } else if (!inMemoryAllowed()) {
+    throw new Error('DATABASE_URL is not set. Configure a PostgreSQL connection string.');
   }
 
-  activePool = createInMemoryPool();
+  activePool = await createInMemoryPool();
   return activePool;
 }
 
-let memFallbackPool = null;
+async function withPool(method, args) {
+  try {
+    const p = await initPool();
+    return await p[method](...args);
+  } catch (err) {
+    if (!isInMemory && inMemoryAllowed()) {
+      console.warn(`[DB] ${method} failed (${err.message}). Falling back to pg-mem.`);
+      if (!memFallbackPool) memFallbackPool = await createInMemoryPool();
+      activePool = memFallbackPool;
+      return activePool[method](...args);
+    }
+    throw err;
+  }
+}
 
 const poolProxy = {
-  query: async (...args) => {
-    try {
-      const p = await initPool();
-      return await p.query(...args);
-    } catch (err) {
-      if (!isInMemory) {
-        console.warn(`[DB] Query failed (${err.message}). Switching to pg-mem fallback...`);
-        if (!memFallbackPool) memFallbackPool = createInMemoryPool();
-        activePool = memFallbackPool;
-        return await activePool.query(...args);
-      }
-      throw err;
-    }
-  },
-  connect: async (...args) => {
-    try {
-      const p = await initPool();
-      return await p.connect(...args);
-    } catch (err) {
-      if (!isInMemory) {
-        console.warn(`[DB] Connect failed (${err.message}). Switching to pg-mem fallback...`);
-        if (!memFallbackPool) memFallbackPool = createInMemoryPool();
-        activePool = memFallbackPool;
-        return await activePool.connect(...args);
-      }
-      throw err;
-    }
-  },
+  query: (...args) => withPool('query', args),
+  connect: (...args) => withPool('connect', args),
   on: (...args) => {
     if (activePool && activePool.on) activePool.on(...args);
   },
@@ -101,7 +125,12 @@ export async function checkDatabaseHealth() {
     const client = await p.connect();
     await client.query('SELECT 1 as health_check');
     if (client.release) client.release();
-    return { healthy: true, inMemory: isInMemory };
+    // An in-memory database is never "healthy" as far as a load balancer is
+    // concerned — it means the real database is missing.
+    if (isInMemory) {
+      return { healthy: false, inMemory: true, error: 'Serving from the in-memory database' };
+    }
+    return { healthy: true, inMemory: false };
   } catch (err) {
     return { healthy: false, error: err.message };
   }
@@ -115,7 +144,7 @@ export async function closePool() {
   if (activePool && activePool.end) {
     try {
       await activePool.end();
-    } catch (err) {
+    } catch {
       // Ignore
     }
   }

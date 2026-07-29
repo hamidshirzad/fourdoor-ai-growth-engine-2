@@ -1,12 +1,23 @@
+// The API is a separate Express service — it is never same-origin with the
+// frontend. Returning '' for an unset NEXT_PUBLIC_API_URL used to send every
+// call to the Vercel deployment itself, where `/api/auth/login` does not exist,
+// so a missing env var surfaced as an unexplained 404 ("API error") on the
+// login form instead of a configuration problem. Keep this empty rather than
+// guessing an origin, and let apiCall() name the real fault.
 function getApiBaseUrl() {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (!url || url.includes('example.com')) {
     return '';
   }
-  return url;
+  return url.replace(/\/+$/, '');
 }
 
 export const API_BASE_URL = getApiBaseUrl();
+
+export const isApiConfigured = Boolean(API_BASE_URL);
+
+const NOT_CONFIGURED_MESSAGE =
+  'The API server address is not configured. Set NEXT_PUBLIC_API_URL to the deployed backend URL and redeploy the frontend.';
 
 export async function apiCall(endpoint, method = 'GET', data = null, token = null) {
   const headers = {};
@@ -24,13 +35,16 @@ export async function apiCall(endpoint, method = 'GET', data = null, token = nul
     ...(data && { body: isFormData ? data : JSON.stringify(data) })
   };
 
+  if (!isApiConfigured) {
+    throw new Error(NOT_CONFIGURED_MESSAGE);
+  }
+
   let response;
   const targetUrl = `${API_BASE_URL}${endpoint}`;
   try {
     response = await fetch(targetUrl, config);
   } catch (err) {
-    const host = API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-    throw new Error(`Cannot reach the API server at ${host}. ${err.message}`);
+    throw new Error(`Cannot reach the API server at ${API_BASE_URL}. ${err.message}`);
   }
 
   if (!response.ok) {

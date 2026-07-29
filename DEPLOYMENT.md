@@ -89,30 +89,79 @@ npm run migrate
 1. Create a Node.js service with root directory `backend`.
 2. Use build command `npm ci`.
 3. Use start command `npm start`.
-4. Add the backend environment variables above.
-5. After deploy, run `npm run migrate` once from the service shell.
-6. Set the public backend URL as the PayPal webhook target: `/api/billing/webhook`.
+4. Add the backend environment variables above. `DATABASE_URL` and `JWT_SECRET`
+   are mandatory — the service now fails fast if it cannot reach PostgreSQL
+   rather than quietly serving from an in-memory database whose contents vanish
+   on the next restart.
+5. Set `CORS_ORIGIN` to the frontend origins, comma-separated
+   (`https://www.fourdoorai.com,https://fourdoorai.com`). Without it the API
+   reflects any Origin back, which is an allow-all for credentialed requests.
+6. After deploy, run `npm run migrate` once from the service shell.
+7. Register the webhook endpoints against the public backend URL:
+   - Stripe: `/api/billing/stripe/webhook`
+   - PayPal: `/api/billing/webhook`
+8. Copy the deployed URL into the frontend's `NEXT_PUBLIC_API_URL` and redeploy
+   the frontend — it is baked in at build time.
+
+## Stripe subscriptions
+
+Checkout runs on Stripe's hosted page; card details never reach this
+application, and no publishable key is needed in the browser.
+
+1. Create one recurring Price per plan in the Stripe dashboard and put the
+   price ids in `STRIPE_STARTER_PRICE_ID`, `STRIPE_PRO_PRICE_ID` and
+   `STRIPE_AGENCY_PRICE_ID`. A plan with no price id is shown as unavailable
+   rather than being silently granted.
+2. Set `STRIPE_SECRET_KEY`.
+3. Add a webhook endpoint pointing at `<backend-url>/api/billing/stripe/webhook`
+   subscribed to `checkout.session.completed`,
+   `customer.subscription.created/updated/deleted` and
+   `invoice.payment_failed`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`.
+
+**A subscription only becomes active through a signature-verified webhook.**
+Starting checkout does not change anyone's plan, and an unsigned or unverifiable
+webhook is rejected with a 400. Events are recorded in
+`processed_webhook_events` so Stripe's retries are idempotent. If
+`STRIPE_WEBHOOK_SECRET` is missing, no subscription can ever activate — that is
+deliberate, because the alternative is trusting unauthenticated input about who
+has paid.
 
 ## Frontend on Vercel
 
 1. Import the repository.
-2. Set root directory to `frontend`.
-3. Use build command `npm run build`.
-4. Set `NEXT_PUBLIC_API_URL` to the deployed backend URL.
+2. **Set Root Directory to `frontend`** (Settings → Build & Deployment). This is
+   required, not optional — see below.
+3. Leave the build command as the default `npm run build`.
+4. Set `NEXT_PUBLIC_API_URL` to the deployed backend URL, for Production *and*
+   Preview.
 5. Deploy.
 
-**Troubleshooting:** builds failing with `Could not read package.json` or
+### Root Directory must be `frontend`
+
+The repo root previously carried a `vercel.json` that set `framework: nextjs`
+alongside `outputDirectory: frontend/.next`. That combination makes the Next.js
+builder fail **during resource provisioning**, before a single line of build
+output is produced — the deployment shows `BUILD_FAILED` /
+"Resource provisioning failed" with completely empty build logs. The file has
+been removed; do not reintroduce it. Point Vercel at `frontend/` instead.
+
+`frontend/package.json` declares everything the frontend imports, so it builds
+standalone from that directory. Dependencies that the frontend imports but that
+were only declared in the root workspace manifest (`firebase`, `motion`) have
+been moved into it. If you add an import, declare it in `frontend/package.json`
+— a root-only dependency will not be installed.
+
+**Troubleshooting:** a build failing with `Could not read package.json` or
 `No Next.js version detected`, or the deployed site serving `404: NOT_FOUND`,
-mean the build is running from the repo root instead of `frontend/`.
-Auto-imports (Vercel Git integration, bolt.new/StackBlitz) default to the repo
-root. Two repo files exist solely to make repo-root builds work: the root
-`vercel.json` redirects install/build into `frontend/`, and the root
-`package.json` is a stub that declares `next` so Vercel's framework detection
-passes (nothing is ever installed at the root). Setting Root Directory to
-`frontend` in the dashboard (Settings → Build & Deployment) is the cleaner fix
-and makes Vercel ignore both files. Also confirm `NEXT_PUBLIC_API_URL` is set
-for Production and Preview; without it the UI builds fine but calls
-`http://localhost:5000` at runtime.
+means the build is running from the repo root instead of `frontend/`. Fix the
+Root Directory setting rather than adding a root `vercel.json`.
+
+**If login fails in production with a generic "API error":** confirm
+`NEXT_PUBLIC_API_URL` is set. It is inlined at build time, so it must be present
+*before* the build and the frontend must be redeployed after changing it. When
+it is missing the login page now says so directly and disables the form instead
+of sending requests to the Vercel deployment itself, where `/api/auth/login`
+does not exist.
 
 ## WorkOS Setup
 
