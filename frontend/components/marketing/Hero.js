@@ -90,9 +90,9 @@ export default function Hero() {
           ))}
         </div>
         <p className="text-left text-sm leading-snug text-neutral-600">
-          <span className="font-semibold text-neutral-50">500+ companies</span>
+          <span className="font-semibold text-neutral-50">Early access</span>
           <br />
-          running on Fourdoor AI
+          onboarding first clients now
         </p>
       </div>
     </section>

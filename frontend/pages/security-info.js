@@ -8,8 +8,8 @@ const SECURITY_PILLARS = [
     desc: 'Every single AI-generated output and campaign text is scanned before outbound release to ensure zero API key leaks, credentials, or sensitive data exposure.'
   },
   {
-    title: 'SOC2 Type II & ISO 27001 Infrastructure',
-    desc: 'Hosted in Cloud Run isolated containerized environments with strict VPC network isolation and continuous monitoring.'
+    title: 'Isolated Cloud Infrastructure',
+    desc: 'Hosted in isolated containerized environments with network isolation and continuous monitoring. We are not currently SOC2 or ISO 27001 certified.'
   },
   {
     title: 'End-to-End Encryption',
@@ -25,7 +25,7 @@ export default function SecurityInfoPage() {
   return (
     <MarketingPageLayout
       title="Security Trust Center"
-      description="Learn about Fourdoor AI platform security, SOC2 compliance, real-time secret scanning, and data protection standards."
+      description="Learn about Fourdoor AI platform security, secret scanning, encryption, and data protection standards."
     >
       <div className="py-8 max-w-4xl mx-auto">
         <div className="text-center mb-12">
@@ -54,9 +54,9 @@ export default function SecurityInfoPage() {
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-[#141416] p-8 text-center">
-          <h3 className="font-display text-xl font-bold text-neutral-50 mb-2">Need a Security Questionnaire or SOC2 Report?</h3>
+          <h3 className="font-display text-xl font-bold text-neutral-50 mb-2">Need to Run a Security Review?</h3>
           <p className="text-xs text-neutral-400 max-w-md mx-auto mb-6">
-            Contact our security engineering team for custom vendor security audits and SOC2 compliance documents.
+            We will answer a vendor security questionnaire directly and in writing. We hold no SOC2 or ISO 27001 certification and will not claim one.
           </p>
           <Link href="/contact" className="inline-flex rounded-lg bg-orange-500 px-6 py-2.5 text-xs font-bold text-neutral-950 hover:bg-orange-400 transition-all">
             Contact Security Team

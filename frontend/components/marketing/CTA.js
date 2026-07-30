@@ -87,7 +87,7 @@ export default function CTA() {
           </div>
         )}
 
-        <p className="mt-4 text-xs text-neutral-700">Join 500+ companies already on autopilot</p>
+        <p className="mt-4 text-xs text-neutral-700">Early access — we onboard each client personally</p>
       </div>
     </section>
   );
