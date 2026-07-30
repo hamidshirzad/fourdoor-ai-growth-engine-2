@@ -239,6 +239,13 @@ export async function runMigrations() {
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('Migration error:', err.message);
+    // Rethrow. This used to log and return normally, so `npm run migrate` exited
+    // 0 on a failed statement and Render's `npm run migrate && npm start` went
+    // on to boot the API against a rolled-back, incomplete schema. Nothing
+    // caught it afterwards either: /health/ready only proves the database is
+    // reachable, not that it has the expected tables, so the service reported
+    // healthy while routes failed on missing columns.
+    throw err;
   } finally {
     if (client.release) client.release();
   }
@@ -246,6 +253,15 @@ export async function runMigrations() {
 
 import { fileURLToPath } from 'url';
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  runMigrations().then(() => pool.end?.());
+  // Exit explicitly rather than relying on unhandled-rejection semantics for the
+  // exit code — `npm run migrate && npm start` depends on it, and a deploy that
+  // starts on a half-migrated schema is worse than one that refuses to start.
+  runMigrations()
+    .then(() => pool.end?.())
+    .catch(async (err) => {
+      console.error('Migrations failed, refusing to continue:', err.message);
+      await pool.end?.().catch(() => {});
+      process.exit(1);
+    });
 }
 

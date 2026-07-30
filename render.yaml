@@ -17,6 +17,12 @@ services:
     # EXISTS / ADD COLUMN IF NOT EXISTS), and Render's free tier has no shell to
     # run them from by hand.
     #
+    # Any migration failure exits non-zero, so `&& npm start` is skipped and the
+    # deploy fails rather than booting the API against a half-applied schema.
+    # That matters because /health/ready checks database *connectivity*, not
+    # schema, so a partially migrated service would otherwise report healthy
+    # while routes failed on missing tables.
+    #
     # Seeding is deliberately NOT here: `npm run seed` creates the demo account
     # (demo@fourdoor.ai) whose password is published in this repo's docs. Run it
     # once by hand if you want "Try Demo Mode" to work in production.
