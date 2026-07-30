@@ -177,7 +177,8 @@ no API server configured"* banner. Its absence on the live page proves the fix h
 - **Render free tier**: the instance sleeps when idle, so the three `node-cron` schedulers will
   not fire on schedule (use a paid instance or `DISABLE_SCHEDULERS=true`), and cold starts of
   ~30–60 s will look like a hung login form.
-- **A failing migration *statement* exits 0.** `runMigrations()` rolls back and logs without
-  rethrowing, so the service can start against an incomplete schema. Check the deploy log for
-  `All migrations completed successfully` rather than trusting the green status alone. A failed
-  *connection* does exit non-zero.
+- **Any migration failure aborts the deploy.** `runMigrations()` rethrows after rolling back and
+  the CLI entrypoint exits non-zero, so `npm run migrate && npm start` cannot reach `npm start`
+  on a half-applied schema. This previously exited 0 for a failing *statement* (only a failed
+  *connection* aborted), which would have started the API against an incomplete schema while
+  `/health/ready` — which checks connectivity, not schema — still reported healthy.

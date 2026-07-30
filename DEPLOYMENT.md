@@ -123,12 +123,11 @@ Notes on the choices:
 
 - **Migrations run on every boot.** They are idempotent (`CREATE TABLE IF NOT
   EXISTS`, `ADD COLUMN IF NOT EXISTS`), and the free tier has no shell to run
-  them from by hand. An unreachable database exits non-zero, so `&& npm start`
-  is skipped and Render fails the deploy — a bad `DATABASE_URL` cannot slip
-  through. A *failing migration statement*, however, is rolled back and logged
-  without a non-zero exit, so the service would start against an incomplete
-  schema. Check the deploy log for `All migrations completed successfully`
-  after the first deploy rather than trusting the green status alone.
+  them from by hand. **Any** migration failure now exits non-zero, so
+  `&& npm start` is skipped and Render fails the deploy — the API can never
+  start against a half-applied schema. That covers a missing or unreachable
+  `DATABASE_URL` *and* a failing SQL statement; the whole run is one
+  transaction, so a failed statement is rolled back before the process exits.
 - **`/health/ready` fails when the database is unreachable**, so a bad
   `DATABASE_URL` surfaces as a failed deploy instead of a service that answers
   every request against an empty database.
