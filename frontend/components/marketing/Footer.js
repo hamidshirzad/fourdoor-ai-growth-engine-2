@@ -79,7 +79,7 @@ export default function Footer() {
 
         <div className="flex flex-col sm:flex-row items-center justify-between border-t border-white/10 pt-6 gap-4">
           <span className="text-xs text-neutral-400">
-            © 2026 Fourdoor AI, Inc. All rights reserved.
+            © 2026 Fourdoor AI — Belgium. All rights reserved.
           </span>
           <Link
             href="/status"
