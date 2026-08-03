@@ -1,9 +1,10 @@
 # Render blueprint for the Express API (backend/).
 #
-# The frontend is NOT deployed here — it lives in its own Vercel project with
-# Root Directory `frontend`. The two are separate services on separate origins,
-# which is why the frontend needs NEXT_PUBLIC_API_URL pointing at whatever URL
-# this service gets, and why this service needs CORS_ORIGIN pointing back.
+# The frontend is NOT deployed here — it is a Netlify site built from
+# `frontend/` (see netlify.toml). The two are separate services on separate
+# origins, which is why the frontend needs NEXT_PUBLIC_API_URL pointing at
+# whatever URL this service gets, and why this service needs CORS_ORIGIN
+# pointing back.
 #
 # Create via Render -> New -> Blueprint, pointed at this repository.
 services:

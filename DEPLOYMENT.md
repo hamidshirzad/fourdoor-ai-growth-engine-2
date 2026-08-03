@@ -178,42 +178,52 @@ webhook is rejected with a 400. Events are recorded in
 deliberate, because the alternative is trusting unauthenticated input about who
 has paid.
 
-## Frontend on Vercel
+## Frontend on Netlify
 
-1. Import the repository.
-2. **Set Root Directory to `frontend`** (Settings → Build & Deployment). This is
-   required, not optional — see below.
-3. Leave the build command as the default `npm run build`.
-4. Set `NEXT_PUBLIC_API_URL` to the deployed backend URL, for Production *and*
-   Preview.
-5. Deploy.
+`netlify.toml` at the repo root carries the build config, so the site needs
+almost no dashboard setup.
 
-### Root Directory must be `frontend`
+1. Netlify → Add new site → Import from GitHub, pick this repository.
+2. Accept the settings it reads from `netlify.toml` — base `frontend`, command
+   `npm run build`, publish `frontend/.next`, plus the `@netlify/plugin-nextjs`
+   runtime. **Do not** override the base directory in the UI; a UI value wins
+   over the file and building from the repo root produces a 404 site.
+3. Site configuration → Environment variables → add `NEXT_PUBLIC_API_URL` set to
+   the Render service URL, scoped to **all** deploy contexts.
+4. Deploy. Then point `fourdoorai.com` / `www` at Netlify via Domain management.
 
-The repo root previously carried a `vercel.json` that set `framework: nextjs`
-alongside `outputDirectory: frontend/.next`. That combination makes the Next.js
-builder fail **during resource provisioning**, before a single line of build
-output is produced — the deployment shows `BUILD_FAILED` /
-"Resource provisioning failed" with completely empty build logs. The file has
-been removed; do not reintroduce it. Point Vercel at `frontend/` instead.
+`NEXT_PUBLIC_API_URL` must exist *before* the build. Next.js inlines
+`NEXT_PUBLIC_*` into the client bundle, so setting it afterwards changes nothing
+until the site is rebuilt — use "Clear cache and deploy site". When it is
+missing, the login page says so and disables itself rather than posting to the
+Netlify site, where `/api/auth/login` does not exist.
+
+### Why not Vercel
+
+The Vercel account hit a plan/usage limit. Every build fails during **resource
+provisioning** — `BUILD_FAILED` / "Resource provisioning failed", dead in ~500 ms
+with zero build-log events — and no repository change fixes it, because Vercel is
+refusing to allocate build containers at the account level. It is not the code:
+the frontend builds clean locally and on Netlify.
+
+Two dead ends, recorded so they are not retried: a root `vercel.json` setting
+`framework: nextjs` alongside `outputDirectory: frontend/.next` does break the
+Next.js builder in exactly the way described above, but removing it did not fix
+these deploys; and changing project settings does not retroactively rebuild —
+a redeploy has to be triggered explicitly.
+
+### Monorepo layout
 
 `frontend/package.json` declares everything the frontend imports, so it builds
-standalone from that directory. Dependencies that the frontend imports but that
-were only declared in the root workspace manifest (`firebase`, `motion`) have
-been moved into it. If you add an import, declare it in `frontend/package.json`
-— a root-only dependency will not be installed.
+standalone from that directory. Dependencies the frontend imports that were only
+declared in the root workspace manifest (`firebase`, `motion`) have been moved
+into it. If you add an import, declare it in `frontend/package.json` — a
+root-only dependency will not be installed.
 
 **Troubleshooting:** a build failing with `Could not read package.json` or
-`No Next.js version detected`, or the deployed site serving `404: NOT_FOUND`,
-means the build is running from the repo root instead of `frontend/`. Fix the
-Root Directory setting rather than adding a root `vercel.json`.
-
-**If login fails in production with a generic "API error":** confirm
-`NEXT_PUBLIC_API_URL` is set. It is inlined at build time, so it must be present
-*before* the build and the frontend must be redeployed after changing it. When
-it is missing the login page now says so directly and disables the form instead
-of sending requests to the Vercel deployment itself, where `/api/auth/login`
-does not exist.
+`No Next.js version detected`, or a deployed site serving 404s for every route,
+means the build ran from the repo root instead of `frontend/`. Check that no UI
+setting is overriding `base` in `netlify.toml`.
 
 ## WorkOS Setup
 

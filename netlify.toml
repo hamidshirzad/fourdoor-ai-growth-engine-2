@@ -1,0 +1,40 @@
+# Netlify configuration for the Next.js frontend.
+#
+# The frontend is hosted here; the Express API is a SEPARATE service (see
+# render.yaml). They live on different origins, which is why the frontend needs
+# NEXT_PUBLIC_API_URL pointing at the API, and the API needs CORS_ORIGIN
+# pointing back at this site.
+#
+# Netlify is used rather than Vercel because the Vercel account hit a plan/usage
+# limit: every build there fails during *resource provisioning* — dead in ~500 ms
+# with zero build-log events — which no repository change can fix.
+
+[build]
+  # This repo is a monorepo. Without `base`, Netlify builds from the root, where
+  # there is no Next.js app, and the deploy 404s.
+  base = "frontend"
+  command = "npm run build"
+  # Relative to `base`, i.e. frontend/.next. The Next.js runtime plugin picks it
+  # up from here and turns the server-rendered routes into functions.
+  publish = ".next"
+
+[build.environment]
+  # Pin the major version rather than inheriting whatever Netlify defaults to.
+  # backend/package.json already declares engines.node >= 20; keep them aligned.
+  NODE_VERSION = "20"
+
+# Required for Next.js on Netlify. Without it only static files are published
+# and every SSR/API route 404s.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# NEXT_PUBLIC_API_URL is deliberately NOT set here.
+#
+# It is a build-time value (Next.js inlines NEXT_PUBLIC_* into the bundle), so it
+# must be set in the Netlify UI under Site configuration -> Environment variables
+# BEFORE the build, and the site must be rebuilt after any change to it. Putting
+# it in this file would hardcode one backend URL for every branch and deploy
+# preview.
+#
+# When it is unset the login page says so and disables itself, rather than
+# posting to this Netlify site where /api/auth/login does not exist.
