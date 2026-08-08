@@ -28,6 +28,27 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# frontend/package.json depends on @netlify/blobs even though no application
+# code imports it.
+#
+# The User Agent Blocker extension (installed from the Netlify UI) injects a
+# generated edge function, `ua_blocker_ef`, into frontend/.netlify/edge-functions
+# at build time. With the extension's analytics option enabled — the
+# USER_AGENT_BLOCKER_ANALYTICS variable in the resolved config — that function
+# imports "@netlify/blobs" to record what it blocked.
+#
+# Edge Functions get npm modules through @netlify/edge-bundler, which resolves
+# bare specifiers only against node_modules directories between `base` and the
+# repository root. A module nobody declared is in neither, so the bundler fails
+# with `Could not resolve "@netlify/blobs"` and the whole build exits non-zero —
+# the site does not fall back to deploying without the extension.
+#
+# Declaring it in frontend/package.json is what makes it resolvable. npm
+# workspaces hoist it to the repository root, which is on that search path, so
+# the empty frontend/node_modules is not a problem. Do not drop the dependency
+# as unused; removing it breaks deploys again as long as the extension is
+# installed.
+
 # NEXT_PUBLIC_API_URL is deliberately NOT set here.
 #
 # It is a build-time value (Next.js inlines NEXT_PUBLIC_* into the bundle), so it
