@@ -48,7 +48,7 @@ const PLANS = [
       'Unlimited Qualified Leads & Volume',
       'Custom LLM Fine-Tuning on Brand Copy',
       'Dedicated IP & Custom SMTP Nodes',
-      'SOC2 Compliance & Audit Logs',
+      'Audit Logs & Access Controls',
       'Dedicated Account Director',
       'SLA Guarantee & 24/7 Phone Support'
     ],
@@ -165,7 +165,7 @@ export default function PricingPage() {
             </div>
             <div>
               <h4 className="font-semibold text-neutral-200 mb-1">Is my social account or domain protected against spam flags?</h4>
-              <p className="text-neutral-400">Yes. Fourdoor uses rate-limited throttling, human-like pacing algorithms, and security scanners to keep your accounts 100% compliant and healthy.</p>
+              <p className="text-neutral-400">Fourdoor uses rate-limited throttling and human-like pacing to reduce the risk of spam flags. No tool can guarantee a platform will never restrict an account, and we will not claim otherwise.</p>
             </div>
             <div>
               <h4 className="font-semibold text-neutral-200 mb-1">Can I cancel or upgrade my plan anytime?</h4>

@@ -11,7 +11,7 @@ const POSTS = [
     category: 'Outreach Strategy',
     readTime: '6 min read',
     date: 'July 20, 2026',
-    author: 'Alexander Vance, Head of Growth'
+    author: 'Fourdoor AI'
   },
   {
     id: 2,
@@ -20,7 +20,7 @@ const POSTS = [
     category: 'Content Generation',
     readTime: '4 min read',
     date: 'July 14, 2026',
-    author: 'Elena Rostova, Chief Product Officer'
+    author: 'Fourdoor AI'
   },
   {
     id: 3,
@@ -29,7 +29,7 @@ const POSTS = [
     category: 'Lead Scoring',
     readTime: '8 min read',
     date: 'June 28, 2026',
-    author: 'Marcus Chen, Lead Data Scientist'
+    author: 'Fourdoor AI'
   }
 ];
 

@@ -32,7 +32,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-lg font-bold text-neutral-100 mb-2">4. Your Privacy Rights</h2>
-            <p>Under GDPR, CCPA, and global privacy standards, you have the right to request access to, deletion of, or export of your personal data at any time by contacting privacy@fourdoor.ai.</p>
+            <p>Under GDPR, CCPA, and global privacy standards, you have the right to request access to, deletion of, or export of your personal data at any time by contacting privacy@fourdoorai.com.</p>
           </section>
         </div>
       </div>
