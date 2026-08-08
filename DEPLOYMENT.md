@@ -223,8 +223,27 @@ ends below).
    service URL, for **all** environments.
 2. Redeploy. As on Netlify, the value only reaches the bundle through a build.
 3. Check both hostnames after deploying. `www` and the apex are separate aliases
-   and can drift onto different deployments — a `www` that serves `/` but 404s
-   every other route means it is pinned to an older deployment than the apex.
+   and can point at entirely different projects.
+
+**`www.fourdoorai.com` currently does not serve this application at all.** It
+returns a Vite single-page app titled "My Google AI Studio App" — no source for
+it exists in this repository — which is why `/` answers 200 while `/login` and
+every other route 404: that SPA has no such route. The apex is the only hostname
+serving the real frontend. Point `www` at the same project as the apex, or
+redirect it there.
+
+Two Vercel projects exist for this repository, which is worth knowing before
+changing settings:
+
+| Project | Root directory | Role |
+|---|---|---|
+| `fourdoorai.com` | repo root | Serves the apex domain. Skips PR branch builds. |
+| `fourdoor-ai-growth-engine-2-frontend` | `frontend/pages/api` | Builds PR previews. |
+
+That second root directory is wrong — `frontend/pages/api` holds a single
+`health.js` route, not an app root — and its previews serve a Vercel placeholder
+instead of the site. Either repoint it at `frontend/` or delete the project; as
+configured its preview URLs mean nothing.
 
 #### History: the plan-limit outage
 
