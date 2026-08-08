@@ -178,7 +178,18 @@ webhook is rejected with a 400. Events are recorded in
 deliberate, because the alternative is trusting unauthenticated input about who
 has paid.
 
-## Frontend on Netlify
+## Frontend hosting
+
+The frontend is configured on **two** hosts. Vercel serves `fourdoorai.com`;
+Netlify is a warm standby that can take the domain over if Vercel fails again.
+
+The consequence to internalise: `NEXT_PUBLIC_API_URL` is inlined into the client
+bundle at **build** time, so it must be set on **both** hosts, and each one
+rebuilt after any change. Setting it on only the standby is exactly how
+production ends up serving a login page that reports no API server configured
+while the dashboard shows the variable present.
+
+### Netlify
 
 `netlify.toml` at the repo root carries the build config, so the site needs
 almost no dashboard setup.
@@ -190,7 +201,10 @@ almost no dashboard setup.
    over the file and building from the repo root produces a 404 site.
 3. Site configuration → Environment variables → add `NEXT_PUBLIC_API_URL` set to
    the Render service URL, scoped to **all** deploy contexts.
-4. Deploy. Then point `fourdoorai.com` / `www` at Netlify via Domain management.
+4. Deploy. Leave the custom domain on Vercel unless you are promoting Netlify
+   from standby — only then point `fourdoorai.com` / `www` here via Domain
+   management. The site stays reachable at its `*.netlify.app` address either
+   way, which is what makes it a usable fallback.
 
 `NEXT_PUBLIC_API_URL` must exist *before* the build. Next.js inlines
 `NEXT_PUBLIC_*` into the client bundle, so setting it afterwards changes nothing
@@ -198,13 +212,28 @@ until the site is rebuilt — use "Clear cache and deploy site". When it is
 missing, the login page says so and disables itself rather than posting to the
 Netlify site, where `/api/auth/login` does not exist.
 
-### Why not Vercel
+### Vercel
 
-The Vercel account hit a plan/usage limit. Every build fails during **resource
-provisioning** — `BUILD_FAILED` / "Resource provisioning failed", dead in ~500 ms
-with zero build-log events — and no repository change fixes it, because Vercel is
-refusing to allocate build containers at the account level. It is not the code:
-the frontend builds clean locally and on Netlify.
+Vercel currently serves `fourdoorai.com` from a Next.js project built out of
+`frontend/`. There is no `vercel.json` in this repository — the root directory is
+set in the project's dashboard settings, and it should stay there (see the dead
+ends below).
+
+1. Settings → Environment Variables → add `NEXT_PUBLIC_API_URL` set to the Render
+   service URL, for **all** environments.
+2. Redeploy. As on Netlify, the value only reaches the bundle through a build.
+3. Check both hostnames after deploying. `www` and the apex are separate aliases
+   and can drift onto different deployments — a `www` that serves `/` but 404s
+   every other route means it is pinned to an older deployment than the apex.
+
+#### History: the plan-limit outage
+
+For a period, every Vercel build failed during **resource provisioning** —
+`BUILD_FAILED` / "Resource provisioning failed", dead in ~500 ms with zero
+build-log events. No repository change could fix it, because Vercel was refusing
+to allocate build containers at the account level; the frontend built clean
+locally and on Netlify throughout. That is why Netlify was set up, and why it is
+kept as a standby now that Vercel deploys again.
 
 Two dead ends, recorded so they are not retried: a root `vercel.json` setting
 `framework: nextjs` alongside `outputDirectory: frontend/.next` does break the

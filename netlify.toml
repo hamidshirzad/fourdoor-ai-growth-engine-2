@@ -5,9 +5,14 @@
 # NEXT_PUBLIC_API_URL pointing at the API, and the API needs CORS_ORIGIN
 # pointing back at this site.
 #
-# Netlify is used rather than Vercel because the Vercel account hit a plan/usage
-# limit: every build there fails during *resource provisioning* — dead in ~500 ms
-# with zero build-log events — which no repository change can fix.
+# This site is a warm standby. Vercel serves the fourdoorai.com custom domain;
+# Netlify was set up when the Vercel account hit a plan/usage limit that killed
+# every build during *resource provisioning* — dead in ~500 ms with zero
+# build-log events, unfixable from the repository. Vercel deploys again, so the
+# domain stayed there, and this site is kept building so it can take over.
+#
+# Because both hosts are live, NEXT_PUBLIC_API_URL has to be set in BOTH
+# dashboards. See DEPLOYMENT.md, "Frontend hosting".
 
 [build]
   # This repo is a monorepo. Without `base`, Netlify builds from the root, where
