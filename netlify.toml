@@ -5,15 +5,28 @@
 # NEXT_PUBLIC_API_URL pointing at the API, and the API needs CORS_ORIGIN
 # pointing back at this site.
 #
-# Netlify is used rather than Vercel because the Vercel account hit a plan/usage
-# limit: every build there fails during *resource provisioning* — dead in ~500 ms
-# with zero build-log events — which no repository change can fix.
+# This site is a warm standby. Vercel serves the fourdoorai.com custom domain;
+# Netlify was set up when the Vercel account hit a plan/usage limit that killed
+# every build during *resource provisioning* — dead in ~500 ms with zero
+# build-log events, unfixable from the repository. Vercel deploys again, so the
+# domain stayed there, and this site is kept building so it can take over.
+#
+# Because both hosts are live, NEXT_PUBLIC_API_URL has to be set in BOTH
+# dashboards. See DEPLOYMENT.md, "Frontend hosting".
 
 [build]
   # This repo is a monorepo. Without `base`, Netlify builds from the root, where
   # there is no Next.js app, and the deploy 404s.
   base = "frontend"
-  command = "npm run build"
+  # `npm install --workspaces=false` before the build is not redundant with the
+  # install Netlify already runs. See the @netlify/blobs note below: Edge
+  # Functions bundling only searches THIS directory's node_modules, and a plain
+  # install in an npm workspace hoists everything to the repository root
+  # instead, leaving frontend/node_modules empty.
+  #
+  # --workspaces=false makes npm treat frontend/ as a standalone project, so it
+  # gets a normal (still hoisted, just rooted here) node_modules of its own.
+  command = "npm install --workspaces=false && npm run build"
   # Relative to `base`, i.e. frontend/.next. The Next.js runtime plugin picks it
   # up from here and turns the server-rendered routes into functions.
   publish = ".next"
@@ -27,6 +40,39 @@
 # and every SSR/API route 404s.
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# frontend/package.json depends on @netlify/blobs even though no application
+# code imports it.
+#
+# The User Agent Blocker extension (installed from the Netlify UI) injects a
+# generated edge function, `ua_blocker_ef`, into frontend/.netlify/edge-functions
+# at build time. With the extension's analytics option enabled — the
+# USER_AGENT_BLOCKER_ANALYTICS variable in the resolved config — that function
+# imports "@netlify/blobs" to record what it blocked.
+#
+# Edge Functions get npm modules through @netlify/edge-bundler. It cannot use
+# normal resolution, because it bundles from a temp directory outside the
+# project, so it passes esbuild an explicit search path instead. netlify-build
+# calls it with only `basePath` (this `base` directory) and no `rootPath`, and
+# edge-bundler defaults `rootPath` to `basePath` — so the search path is exactly
+# one entry: frontend/node_modules. The repository root is NOT searched.
+#
+# That is why two changes are needed, and why either one alone still fails:
+#
+#   1. frontend/package.json must declare @netlify/blobs, and
+#   2. the install must actually put it in frontend/node_modules, which is what
+#      --workspaces=false in the build command above is for. This repo is an npm
+#      workspace, so a plain `npm install` hoists every package to the
+#      repository root and leaves frontend/node_modules empty — resolvable for
+#      the Next.js build, invisible to Edge Functions bundling.
+#
+# An unresolvable import in a generated edge function is a hard failure:
+# `Could not resolve "@netlify/blobs"`, exit code 2, no deploy. The site does
+# not fall back to publishing without the extension.
+#
+# Do not drop the dependency as unused, and do not simplify the build command
+# back to a plain `npm run build`; either one breaks deploys again for as long
+# as the extension is installed.
 
 # NEXT_PUBLIC_API_URL is deliberately NOT set here.
 #

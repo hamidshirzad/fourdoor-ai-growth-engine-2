@@ -9,6 +9,7 @@
     "lint": "node -e \"console.log('Lint passed')\""
   },
   "dependencies": {
+    "@netlify/blobs": "^10.7.12",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.7",
     "@vercel/analytics": "^2.0.1",
