@@ -181,7 +181,17 @@ has paid.
 ## Frontend hosting
 
 The frontend is configured on **two** hosts. Vercel serves `fourdoorai.com`;
-Netlify is a warm standby that can take the domain over if Vercel fails again.
+Netlify is intended as a standby that can take the domain over if Vercel fails
+again.
+
+**The standby is not currently warm.** Netlify's `production` context has
+produced exactly one serving build, on 2026-08-02 (`9c5d63d`). Every production
+deploy since has errored, and the two most recent were skipped outright —
+`skipped: true`, no `commit_ref`, no build time, meaning no build ran. Only
+branch and deploy-preview contexts are green, and only on branches carrying the
+`@netlify/blobs` fix. Treat "Netlify can take over" as a task to finish, not a
+property the site already has: get the `master` production context building
+before relying on it.
 
 The consequence to internalise: `NEXT_PUBLIC_API_URL` is inlined into the client
 bundle at **build** time, so it must be set on **both** hosts, and each one

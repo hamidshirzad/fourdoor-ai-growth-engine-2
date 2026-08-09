@@ -5,7 +5,11 @@
 # NEXT_PUBLIC_API_URL pointing at the API, and the API needs CORS_ORIGIN
 # pointing back at this site.
 #
-# This site is a warm standby. Vercel serves the fourdoorai.com custom domain;
+# This site is the intended standby. Vercel serves the fourdoorai.com custom
+# domain; note the standby is NOT yet warm — the production context here has
+# built successfully once (2026-08-02) and every attempt since has errored or
+# been skipped. See DEPLOYMENT.md, "Frontend hosting".
+#
 # Netlify was set up when the Vercel account hit a plan/usage limit that killed
 # every build during *resource provisioning* — dead in ~500 ms with zero
 # build-log events, unfixable from the repository. Vercel deploys again, so the
