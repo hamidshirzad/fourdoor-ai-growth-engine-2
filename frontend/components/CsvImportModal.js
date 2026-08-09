@@ -69,6 +69,7 @@ export default function CsvImportModal({ isOpen, onClose, token, onSuccess }) {
           <button
             onClick={onClose}
             className="rounded p-1 text-neutral-400 hover:bg-white/5 hover:text-neutral-200 transition"
+            aria-label="Close CSV import"
           >
             <X size={18} />
           </button>

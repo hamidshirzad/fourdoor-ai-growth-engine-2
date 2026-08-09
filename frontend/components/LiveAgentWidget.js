@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import useDialogA11y from '../lib/useDialogA11y';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bot, MessageSquare, BookOpen, Send, X, Sparkles, ShieldCheck, CheckCircle2, ChevronRight, HelpCircle, User, RefreshCw, Copy, Check } from 'lucide-react';
 import { apiCall } from '../lib/api';
@@ -60,6 +61,8 @@ const GUIDELINES_LIST = [
 
 export default function LiveAgentWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  // Focus trap, focus restore and Escape handling for the panel below.
+  const dialogRef = useDialogA11y(isOpen, () => setIsOpen(false));
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' or 'guidelines'
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -145,6 +148,8 @@ export default function LiveAgentWidget() {
       <div className="fixed bottom-5 right-5 z-50">
         <motion.button
           onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+          aria-controls="live-agent-panel"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="relative flex items-center gap-2.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3 font-bold text-neutral-950 shadow-2xl shadow-orange-500/25 border border-orange-400/40"
@@ -164,6 +169,12 @@ export default function LiveAgentWidget() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            id="live-agent-panel"
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="live-agent-title"
+            tabIndex={-1}
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -178,7 +189,7 @@ export default function LiveAgentWidget() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-neutral-50">Fourdoor Live AI Agent</h3>
+                    <h3 id="live-agent-title" className="text-sm font-bold text-neutral-50">Fourdoor Live AI Agent</h3>
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       Live Online
@@ -190,6 +201,7 @@ export default function LiveAgentWidget() {
 
               <button
                 onClick={() => setIsOpen(false)}
+            aria-label="Close live agent"
                 className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/10 hover:text-neutral-100 transition"
               >
                 <X size={18} />

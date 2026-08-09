@@ -1,10 +1,18 @@
 import Navigation from './Navigation';
+import Seo from './Seo';
 
 export default function AppShell({ title, subtitle, actions, children }) {
   return (
     <>
+      {/* Signed-in pages are behind auth and should never be indexed or shown
+       * as a share preview, but they still need a correct <title> for tab and
+       * history legibility. Seo supplies that plus a canonical; the noindex
+       * below keeps them out of search results. */}
+      <Seo title={title} description={subtitle} noindex />
+      {/* Lets keyboard users jump the 13-item nav on every app page (WCAG 2.4.1). */}
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <Navigation />
-      <main className="min-h-screen bg-[#0A0A0B] px-4 py-6">
+      <main id="main-content" className="min-h-screen bg-[#0A0A0B] px-4 py-6">
         <div className="mx-auto max-w-7xl">
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>

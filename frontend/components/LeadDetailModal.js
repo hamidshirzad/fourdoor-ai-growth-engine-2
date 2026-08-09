@@ -257,6 +257,7 @@ export default function LeadDetailModal({ lead, isOpen, onClose, token, onLeadUp
             onClick={onClose}
             className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white transition"
             title="Close Modal"
+            aria-label="Close lead details"
           >
             <X size={20} />
           </button>

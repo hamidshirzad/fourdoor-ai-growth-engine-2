@@ -433,6 +433,7 @@ export default function LeadsPage() {
 
                       <button
                         onClick={() => setSelectedLeadIds([])}
+            aria-label="Deselect all leads"
                         className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white transition"
                         title="Deselect All"
                       >

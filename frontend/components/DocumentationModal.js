@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import useDialogA11y from '../lib/useDialogA11y';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, BookOpen, X, ChevronRight, HelpCircle, Sparkles, ShieldCheck, CreditCard, Target, Bot, Copy, Check, ExternalLink, MessageSquare } from 'lucide-react';
 import { toast } from '../lib/toastStore';
@@ -72,6 +73,8 @@ const FAQ_DATABASE = [
 
 export default function DocumentationModal() {
   const [isOpen, setIsOpen] = useState(false);
+  // Focus trap, focus restore and Escape handling for the dialog below.
+  const dialogRef = useDialogA11y(isOpen, () => setIsOpen(false));
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [expandedFaqId, setExpandedFaqId] = useState('faq-1');
@@ -129,11 +132,17 @@ export default function DocumentationModal() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsOpen(false)}
+            aria-hidden="true"
             className="fixed inset-0 bg-black/75 backdrop-blur-md"
           />
 
           {/* Modal Container */}
           <motion.div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="docs-modal-title"
+            tabIndex={-1}
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -148,7 +157,7 @@ export default function DocumentationModal() {
                     <BookOpen size={18} />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-neutral-50">Fourdoor AI Documentation & FAQs</h2>
+                    <h2 id="docs-modal-title" className="text-sm font-bold text-neutral-50">Fourdoor AI Documentation & FAQs</h2>
                     <p className="text-[11px] text-neutral-400">Search guidelines, policies, and platform features</p>
                   </div>
                 </div>
@@ -160,6 +169,7 @@ export default function DocumentationModal() {
                   <button
                     onClick={() => setIsOpen(false)}
                     className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white transition"
+                    aria-label="Close documentation"
                   >
                     <X size={18} />
                   </button>

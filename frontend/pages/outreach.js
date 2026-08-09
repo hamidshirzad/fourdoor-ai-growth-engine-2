@@ -619,7 +619,8 @@ export default function OutreachPage() {
                 <button
                   onClick={() => setModalOpen(false)}
                   className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/10 hover:text-neutral-100 transition"
-                >
+            aria-label="Close dialog"
+          >
                   <X size={18} />
                 </button>
               </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Navigation from '../components/Navigation';
+import Seo from '../components/Seo';
 import { useAuthStore } from '../lib/store';
 import { API_BASE_URL, isApiConfigured } from '../lib/api';
 
@@ -48,8 +49,10 @@ export default function LoginPage() {
 
   return (
     <>
+      <Seo title="Log in" description="Sign in to your Fourdoor AI Growth operations workspace." />
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <Navigation />
-      <main className="flex min-h-[calc(100vh-65px)] items-center justify-center bg-[#0A0A0B] px-4 py-8">
+      <main id="main-content" className="flex min-h-[calc(100vh-65px)] items-center justify-center bg-[#0A0A0B] px-4 py-8">
         <section className="w-full max-w-md rounded-xl border border-white/10 bg-[#141416] p-6 shadow-xl">
           <div className="mb-4 flex items-center justify-between">
             <Link href="/" className="inline-flex items-center text-xs font-medium text-neutral-400 hover:text-white transition-colors">
@@ -87,13 +90,19 @@ export default function LoginPage() {
             <div className="h-px flex-1 bg-white/10" />
           </div>
 
-          {error && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
+          {/* role="alert" so screen readers announce a failed sign-in attempt;
+            * without it the message appears silently and a non-sighted user is
+            * left waiting on a form that looks like it did nothing. */}
+          {error && <div role="alert" className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-300">Email Address</label>
+              <label htmlFor="login-email" className="mb-1 block text-xs font-medium text-neutral-300">Email Address</label>
               <input
-                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                id="login-email"
+                name="email"
+                autoComplete="email"
+                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                 type="email"
                 placeholder="name@company.com"
                 value={email}
@@ -102,9 +111,12 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-300">Password</label>
+              <label htmlFor="login-password" className="mb-1 block text-xs font-medium text-neutral-300">Password</label>
               <input
-                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                id="login-password"
+                name="password"
+                autoComplete="current-password"
+                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                 type="password"
                 placeholder="••••••••"
                 value={password}

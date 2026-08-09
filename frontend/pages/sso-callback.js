@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Seo from '../components/Seo';
 import { setToken } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 
@@ -21,7 +22,10 @@ export default function SsoCallbackPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#0A0A0B]">
-      <p className="text-sm text-neutral-400">Signing you in…</p>
+      <Seo title="Signing you in" noindex />
+      {/* aria-live so assistive tech announces this transient state; the page
+        * redirects on its own and has no other content to read. */}
+      <p role="status" aria-live="polite" className="text-sm text-neutral-400">Signing you in…</p>
     </main>
   );
 }
