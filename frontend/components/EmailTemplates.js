@@ -317,7 +317,7 @@ export default function EmailTemplates({ onSelectTemplateForLead }) {
                 placeholder="Search templates..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] pl-10 pr-3.5 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] pl-10 pr-3.5 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
               />
             </div>
 
@@ -489,7 +489,7 @@ export default function EmailTemplates({ onSelectTemplateForLead }) {
                     <select
                       value={selectedLeadId}
                       onChange={(e) => handleSelectPreviewLead(e.target.value)}
-                      className="rounded-lg border border-white/10 bg-[#141416] px-2.5 py-1 text-xs text-neutral-200 focus:border-orange-500 focus:outline-none"
+                      className="rounded-lg border border-white/10 bg-[#141416] px-2.5 py-1 text-xs text-neutral-200 focus:border-orange-500"
                     >
                       <option value="sample">✨ Default Sample Prospect ({DEFAULT_SAMPLE_LEAD.name})</option>
                       {leads.map((l) => (
@@ -508,7 +508,7 @@ export default function EmailTemplates({ onSelectTemplateForLead }) {
                         type="text"
                         value={previewLead.name}
                         onChange={(e) => setPreviewLead({ ...previewLead, name: e.target.value })}
-                        className="w-full mt-0.5 rounded border border-white/10 bg-[#141416] px-2 py-1 text-neutral-200 focus:border-orange-500 focus:outline-none"
+                        className="w-full mt-0.5 rounded border border-white/10 bg-[#141416] px-2 py-1 text-neutral-200 focus:border-orange-500"
                       />
                     </div>
                     <div>
@@ -517,7 +517,7 @@ export default function EmailTemplates({ onSelectTemplateForLead }) {
                         type="text"
                         value={previewLead.company}
                         onChange={(e) => setPreviewLead({ ...previewLead, company: e.target.value })}
-                        className="w-full mt-0.5 rounded border border-white/10 bg-[#141416] px-2 py-1 text-neutral-200 focus:border-orange-500 focus:outline-none"
+                        className="w-full mt-0.5 rounded border border-white/10 bg-[#141416] px-2 py-1 text-neutral-200 focus:border-orange-500"
                       />
                     </div>
                     <div className="col-span-2 sm:col-span-1">
@@ -526,7 +526,7 @@ export default function EmailTemplates({ onSelectTemplateForLead }) {
                         type="text"
                         value={previewLead.booking_link}
                         onChange={(e) => setPreviewLead({ ...previewLead, booking_link: e.target.value })}
-                        className="w-full mt-0.5 rounded border border-white/10 bg-[#141416] px-2 py-1 text-neutral-200 focus:border-orange-500 focus:outline-none font-mono"
+                        className="w-full mt-0.5 rounded border border-white/10 bg-[#141416] px-2 py-1 text-neutral-200 focus:border-orange-500 font-mono"
                       />
                     </div>
                   </div>
@@ -647,7 +647,7 @@ export default function EmailTemplates({ onSelectTemplateForLead }) {
                     placeholder="e.g. Gentle 3-Day Follow-Up"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:border-orange-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:border-orange-500"
                   />
                 </div>
 
@@ -658,7 +658,7 @@ export default function EmailTemplates({ onSelectTemplateForLead }) {
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 focus:border-orange-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 focus:border-orange-500"
                   >
                     {CATEGORIES.filter((c) => c.key !== 'all').map((c) => (
                       <option key={c.key} value={c.key}>
@@ -702,7 +702,7 @@ export default function EmailTemplates({ onSelectTemplateForLead }) {
                   value={formSubject}
                   onFocus={() => setActiveFocusField('subject')}
                   onChange={(e) => setFormSubject(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm font-semibold text-neutral-100 placeholder-neutral-600 focus:border-orange-500 focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm font-semibold text-neutral-100 placeholder-neutral-600 focus:border-orange-500"
                 />
               </div>
 
@@ -718,7 +718,7 @@ export default function EmailTemplates({ onSelectTemplateForLead }) {
                   value={formBody}
                   onFocus={() => setActiveFocusField('body')}
                   onChange={(e) => setFormBody(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] p-3.5 text-sm text-neutral-200 leading-relaxed focus:border-orange-500 focus:outline-none font-sans"
+                  className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] p-3.5 text-sm text-neutral-200 leading-relaxed focus:border-orange-500 font-sans"
                 />
               </div>
 

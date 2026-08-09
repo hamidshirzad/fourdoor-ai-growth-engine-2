@@ -258,7 +258,7 @@ export default function LeadsPage() {
                       placeholder="Search name, email, company..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-56 rounded-lg border border-white/10 bg-[#0A0A0B] pl-9 pr-3 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 focus:border-orange-500 focus:outline-none transition"
+                      className="w-56 rounded-lg border border-white/10 bg-[#0A0A0B] pl-9 pr-3 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 focus:border-orange-500 transition"
                     />
                   </div>
 
@@ -268,7 +268,7 @@ export default function LeadsPage() {
                     <select
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value)}
-                      className="bg-transparent text-xs text-neutral-200 focus:outline-none"
+                      className="bg-transparent text-xs text-neutral-200"
                     >
                       <option value="ALL" className="bg-[#141416]">All Stages</option>
                       <option value="new" className="bg-[#141416]">New</option>
@@ -284,7 +284,7 @@ export default function LeadsPage() {
                     <select
                       value={priorityFilter}
                       onChange={(e) => setPriorityFilter(e.target.value)}
-                      className="bg-transparent text-xs text-neutral-200 focus:outline-none"
+                      className="bg-transparent text-xs text-neutral-200"
                     >
                       <option value="ALL" className="bg-[#141416]">All Priorities</option>
                       <option value="HIGH" className="bg-[#141416]">High Priority</option>
@@ -299,7 +299,7 @@ export default function LeadsPage() {
                     <select
                       value={minScoreFilter}
                       onChange={(e) => setMinScoreFilter(e.target.value)}
-                      className="bg-transparent text-xs text-neutral-200 focus:outline-none"
+                      className="bg-transparent text-xs text-neutral-200"
                     >
                       <option value="0" className="bg-[#141416]">All Scores</option>
                       <option value="50" className="bg-[#141416]">50+ Score</option>
@@ -324,14 +324,14 @@ export default function LeadsPage() {
                     {['name', 'email', 'company'].map((field) => (
                       <input
                         key={field}
-                        className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                        className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                         placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
                         value={form[field]}
                         onChange={(e) => setForm({ ...form, [field]: e.target.value })}
                       />
                     ))}
                     <textarea
-                      className="h-20 w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                      className="h-20 w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                       placeholder="Buying signal or inquiry message..."
                       value={form.message}
                       onChange={(e) => setForm({ ...form, message: e.target.value })}
@@ -355,7 +355,7 @@ export default function LeadsPage() {
                     Paste raw DM or inquiry text to classify intent and draft response.
                   </p>
                   <textarea
-                    className="h-24 w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                    className="h-24 w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                     placeholder="Paste customer message or comment..."
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}

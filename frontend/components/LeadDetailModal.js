@@ -385,7 +385,7 @@ export default function LeadDetailModal({ lead, isOpen, onClose, token, onLeadUp
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-[#141416] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded-lg border border-white/10 bg-[#141416] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500"
                     >
                       <option value="new">New Lead</option>
                       <option value="contacted">Contacted</option>
@@ -399,7 +399,7 @@ export default function LeadDetailModal({ lead, isOpen, onClose, token, onLeadUp
                     <select
                       value={priority}
                       onChange={(e) => setPriority(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-[#141416] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded-lg border border-white/10 bg-[#141416] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500"
                     >
                       <option value="High">🔴 High Priority</option>
                       <option value="Medium">🟡 Medium Priority</option>
@@ -561,7 +561,7 @@ export default function LeadDetailModal({ lead, isOpen, onClose, token, onLeadUp
                   <select
                     value={messagePlatform}
                     onChange={(e) => setMessagePlatform(e.target.value)}
-                    className="rounded-lg border border-white/10 bg-[#141416] px-2.5 py-1.5 text-xs text-neutral-200 focus:border-orange-500 focus:outline-none"
+                    className="rounded-lg border border-white/10 bg-[#141416] px-2.5 py-1.5 text-xs text-neutral-200 focus:border-orange-500"
                   >
                     <option value="email">Email</option>
                     <option value="dm">LinkedIn / DM</option>
@@ -572,7 +572,7 @@ export default function LeadDetailModal({ lead, isOpen, onClose, token, onLeadUp
                     placeholder="Type engagement note or message sent to lead..."
                     value={newMessageText}
                     onChange={(e) => setNewMessageText(e.target.value)}
-                    className="flex-1 rounded-lg border border-white/10 bg-[#141416] px-3 py-1.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                    className="flex-1 rounded-lg border border-white/10 bg-[#141416] px-3 py-1.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                   />
                   <button
                     type="submit"
@@ -601,7 +601,7 @@ export default function LeadDetailModal({ lead, isOpen, onClose, token, onLeadUp
                   placeholder="Record call summary, qualification details, or SDR handoff notes..."
                   value={newNoteText}
                   onChange={(e) => setNewNoteText(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-[#141416] p-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                  className="w-full rounded-lg border border-white/10 bg-[#141416] p-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                 />
 
                 <div className="flex justify-end">

@@ -128,7 +128,7 @@ export default function ClientPortalPage() {
                   placeholder="client@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500 focus:outline-none"
+                  className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500"
                 />
               </div>
               <div>
@@ -139,7 +139,7 @@ export default function ClientPortalPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500 focus:outline-none"
+                  className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500"
                 />
               </div>
               <button

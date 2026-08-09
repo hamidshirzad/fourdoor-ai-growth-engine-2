@@ -309,7 +309,7 @@ export default function SystemActivityLogs() {
             placeholder="Search by agent, action name, or JSON input/output..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] pl-10 pr-3.5 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+            className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] pl-10 pr-3.5 py-2 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
           />
         </div>
 
@@ -318,7 +318,7 @@ export default function SystemActivityLogs() {
           <select
             value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
-            className="rounded-xl border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-200 focus:border-orange-500 focus:outline-none font-medium"
+            className="rounded-xl border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-200 focus:border-orange-500 font-medium"
           >
             {AGENT_LIST.map((a) => (
               <option key={a.key} value={a.key}>
@@ -331,7 +331,7 @@ export default function SystemActivityLogs() {
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="rounded-xl border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-200 focus:border-orange-500 focus:outline-none font-medium"
+            className="rounded-xl border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-200 focus:border-orange-500 font-medium"
           >
             <option value="all">All Statuses</option>
             <option value="completed">Completed / Success</option>

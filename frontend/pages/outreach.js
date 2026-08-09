@@ -365,7 +365,7 @@ export default function OutreachPage() {
                   <select
                     value={selectedLeadId}
                     onChange={(e) => setSelectedLeadId(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:border-orange-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:border-orange-500"
                   >
                     <option value="">-- Select a Lead from Pipeline --</option>
                     {leads.map((l) => (
@@ -446,7 +446,7 @@ export default function OutreachPage() {
                     <select
                       value={selectedTemplateId}
                       onChange={(e) => setSelectedTemplateId(e.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:border-orange-500"
                     >
                       <option value="">-- Pick a Saved Template --</option>
                       {templates.map((tpl) => (
@@ -467,7 +467,7 @@ export default function OutreachPage() {
                         placeholder="e.g. Invite prospect to review a personalized audit on automated client qualification..."
                         value={aiContext}
                         onChange={(e) => setAiContext(e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] p-3 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                        className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] p-3 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                       />
                     </div>
                     <button
@@ -517,7 +517,7 @@ export default function OutreachPage() {
                     placeholder="Subject line will appear here..."
                     value={subjectDraft}
                     onChange={(e) => setSubjectDraft(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-4 py-3 text-sm text-neutral-100 font-semibold focus:border-orange-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-4 py-3 text-sm text-neutral-100 font-semibold focus:border-orange-500"
                   />
                 </div>
 
@@ -531,7 +531,7 @@ export default function OutreachPage() {
                     placeholder="Email body content will appear here..."
                     value={bodyDraft}
                     onChange={(e) => setBodyDraft(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] p-4 text-sm text-neutral-200 leading-relaxed font-sans focus:border-orange-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] p-4 text-sm text-neutral-200 leading-relaxed font-sans focus:border-orange-500"
                   />
                 </div>
               </div>
@@ -638,7 +638,7 @@ export default function OutreachPage() {
                       placeholder="e.g. Initial Cold Intro (B2B SaaS)"
                       value={formName}
                       onChange={(e) => setFormName(e.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:border-orange-500"
                     />
                   </div>
 
@@ -649,7 +649,7 @@ export default function OutreachPage() {
                     <select
                       value={formCategory}
                       onChange={(e) => setFormCategory(e.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 focus:border-orange-500"
                     >
                       {CATEGORIES.filter((c) => c.key !== 'all').map((c) => (
                         <option key={c.key} value={c.key}>
@@ -693,7 +693,7 @@ export default function OutreachPage() {
                     value={formSubject}
                     onFocus={() => setActiveFocusField('subject')}
                     onChange={(e) => setFormSubject(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm font-semibold text-neutral-100 placeholder-neutral-600 focus:border-orange-500 focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm font-semibold text-neutral-100 placeholder-neutral-600 focus:border-orange-500"
                   />
                 </div>
 
@@ -709,7 +709,7 @@ export default function OutreachPage() {
                     value={formBody}
                     onFocus={() => setActiveFocusField('body')}
                     onChange={(e) => setFormBody(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] p-3.5 text-sm text-neutral-200 leading-relaxed focus:border-orange-500 focus:outline-none font-sans"
+                    className="w-full rounded-xl border border-white/10 bg-[#0A0A0B] p-3.5 text-sm text-neutral-200 leading-relaxed focus:border-orange-500 font-sans"
                   />
                 </div>
 

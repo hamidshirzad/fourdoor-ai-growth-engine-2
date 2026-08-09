@@ -75,7 +75,11 @@ summary:focus-visible,
   position: absolute;
   left: -9999px;
   top: 0;
-  z-index: 100;
+  /* Must outrank the marketing Nav, which is position:fixed at z-index 100 and
+   * a later sibling — at equal z-index the nav paints over the focused skip
+   * link, leaving it invisible on every MarketingPageLayout route. A skip link
+   * you cannot see is worse than none: it still takes a tab stop. */
+  z-index: 200;
 }
 
 .skip-link:focus {

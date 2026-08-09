@@ -125,7 +125,7 @@ export default function IntegrationsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search integrations..."
-              className="w-full rounded-lg border border-white/10 bg-[#111113] pl-9 pr-4 py-2 text-xs text-neutral-200 focus:outline-none focus:border-orange-500"
+              className="w-full rounded-lg border border-white/10 bg-[#111113] pl-9 pr-4 py-2 text-xs text-neutral-200 focus:border-orange-500"
             />
           </div>
         </div>

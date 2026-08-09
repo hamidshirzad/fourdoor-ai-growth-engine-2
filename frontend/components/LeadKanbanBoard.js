@@ -244,7 +244,7 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
                 placeholder="Search leads, email, company..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-56 rounded-lg border border-white/10 bg-[#0A0A0B] pl-9 pr-3 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 focus:border-orange-500 focus:outline-none transition"
+                className="w-56 rounded-lg border border-white/10 bg-[#0A0A0B] pl-9 pr-3 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 focus:border-orange-500 transition"
               />
             </div>
 
@@ -253,7 +253,7 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
               <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
-                className="bg-transparent text-xs text-neutral-200 focus:outline-none"
+                className="bg-transparent text-xs text-neutral-200"
               >
                 <option value="ALL" className="bg-[#141416]">All Priorities</option>
                 <option value="HIGH" className="bg-[#141416]">High Priority</option>
@@ -265,7 +265,7 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-1.5 text-xs text-neutral-300 focus:border-orange-500 focus:outline-none"
+              className="rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-1.5 text-xs text-neutral-300 focus:border-orange-500"
             >
               <option value="score_desc" className="bg-[#141416]">Sort by Highest Score</option>
               <option value="score_asc" className="bg-[#141416]">Sort by Lowest Score</option>
@@ -422,7 +422,7 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
                             value={getPriority(lead)}
                             onChange={(e) => handlePriorityChange(lead.id, e.target.value)}
                             onClick={(e) => e.stopPropagation()}
-                            className="rounded border border-white/10 bg-[#0A0A0B] px-1.5 py-0.5 text-[10px] text-neutral-300 focus:border-orange-500 focus:outline-none"
+                            className="rounded border border-white/10 bg-[#0A0A0B] px-1.5 py-0.5 text-[10px] text-neutral-300 focus:border-orange-500"
                           >
                             <option value="High" className="bg-[#141416]">High</option>
                             <option value="Medium" className="bg-[#141416]">Medium</option>
@@ -444,7 +444,7 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
                           <select
                             value={currentStage}
                             onChange={(e) => handleStatusChange(lead.id, e.target.value)}
-                            className="rounded border border-white/10 bg-[#0A0A0B] px-2 py-1 text-[11px] text-neutral-200 focus:border-orange-500 focus:outline-none"
+                            className="rounded border border-white/10 bg-[#0A0A0B] px-2 py-1 text-[11px] text-neutral-200 focus:border-orange-500"
                           >
                             <option value="new" className="bg-[#141416]">New</option>
                             <option value="contacted" className="bg-[#141416]">Contacted</option>
@@ -500,7 +500,7 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
                   placeholder="e.g. Alexandra Vance"
                   value={quickLeadForm.name}
                   onChange={(e) => setQuickLeadForm({ ...quickLeadForm, name: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500 focus:outline-none"
+                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500"
                 />
               </div>
 
@@ -512,7 +512,7 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
                   placeholder="alex@acme.com"
                   value={quickLeadForm.email}
                   onChange={(e) => setQuickLeadForm({ ...quickLeadForm, email: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500 focus:outline-none"
+                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500"
                 />
               </div>
 
@@ -523,7 +523,7 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
                   placeholder="Acme Growth Inc."
                   value={quickLeadForm.company}
                   onChange={(e) => setQuickLeadForm({ ...quickLeadForm, company: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500 focus:outline-none"
+                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500"
                 />
               </div>
 
@@ -534,7 +534,7 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
                   placeholder="Requested demo for sales team automation..."
                   value={quickLeadForm.message}
                   onChange={(e) => setQuickLeadForm({ ...quickLeadForm, message: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500 focus:outline-none"
+                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs text-neutral-100 focus:border-orange-500"
                 />
               </div>
 

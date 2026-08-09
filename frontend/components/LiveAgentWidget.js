@@ -333,7 +333,7 @@ export default function LiveAgentWidget() {
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     placeholder="Ask live agent or guidelines..."
-                    className="flex-1 rounded-xl border border-white/10 bg-[#09090b] px-3.5 py-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500/50 focus:outline-none"
+                    className="flex-1 rounded-xl border border-white/10 bg-[#09090b] px-3.5 py-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500/50"
                   />
                   <button
                     type="submit"

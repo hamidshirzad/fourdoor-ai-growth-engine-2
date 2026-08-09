@@ -185,7 +185,7 @@ export default function DocumentationModal() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Type to search FAQs, lead matrix, security guidelines, or billing..."
-                  className="w-full rounded-xl border border-white/10 bg-[#08080a] pl-10 pr-4 py-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500/50 focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-[#08080a] pl-10 pr-4 py-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500/50"
                 />
               </div>
 

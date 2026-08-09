@@ -190,7 +190,7 @@ export default function GuidelinesPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search guidelines, lead scoring rules, security standards..."
-                className="w-full rounded-xl border border-white/10 bg-[#09090b] pl-10 pr-4 py-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500/50 focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-[#09090b] pl-10 pr-4 py-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500/50"
               />
             </div>
 
@@ -376,7 +376,7 @@ export default function GuidelinesPage() {
                 value={chatMessage}
                 onChange={(e) => setChatMessage(e.target.value)}
                 placeholder="Ask live agent or query guidelines..."
-                className="flex-1 rounded-xl border border-white/10 bg-[#09090b] px-3.5 py-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500/50 focus:outline-none"
+                className="flex-1 rounded-xl border border-white/10 bg-[#09090b] px-3.5 py-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:border-orange-500/50"
               />
               <button
                 type="submit"

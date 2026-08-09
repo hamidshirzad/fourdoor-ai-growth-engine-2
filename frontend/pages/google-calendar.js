@@ -244,7 +244,7 @@ export default function GoogleCalendarPage() {
                       placeholder="e.g. Lead Discovery Call"
                       value={summary}
                       onChange={(e) => setSummary(e.target.value)}
-                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500"
                     />
                   </div>
                   <div>
@@ -254,7 +254,7 @@ export default function GoogleCalendarPage() {
                       placeholder="Meeting agenda..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500"
                     />
                   </div>
                   <div>
@@ -264,7 +264,7 @@ export default function GoogleCalendarPage() {
                       required
                       value={startDateTime}
                       onChange={(e) => setStartDateTime(e.target.value)}
-                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500"
                     />
                   </div>
                   <div>
@@ -274,7 +274,7 @@ export default function GoogleCalendarPage() {
                       required
                       value={endDateTime}
                       onChange={(e) => setEndDateTime(e.target.value)}
-                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500"
                     />
                   </div>
                   <div>
@@ -284,7 +284,7 @@ export default function GoogleCalendarPage() {
                       placeholder="client@example.com"
                       value={attendeeEmail}
                       onChange={(e) => setAttendeeEmail(e.target.value)}
-                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500 focus:outline-none"
+                      className="w-full rounded border border-white/10 bg-[#111113] px-3 py-2 text-sm text-neutral-200 focus:border-orange-500"
                     />
                   </div>
                   <button
