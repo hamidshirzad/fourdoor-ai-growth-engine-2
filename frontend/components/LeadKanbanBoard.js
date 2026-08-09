@@ -485,7 +485,8 @@ export default function LeadKanbanBoard({ leads = [], token, onLeadUpdated }) {
               <button
                 onClick={() => setQuickAddColumn(null)}
                 className="rounded p-1 text-neutral-400 hover:bg-white/5 hover:text-neutral-200 transition"
-              >
+            aria-label="Cancel quick add"
+          >
                 <X size={18} />
               </button>
             </div>

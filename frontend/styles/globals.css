@@ -38,8 +38,54 @@ textarea::placeholder {
   color: #737373;
 }
 
+/* Baseline keyboard focus indicator.
+ *
+ * This is deliberately a global element selector rather than a utility class.
+ * The utility (.focus-ring below) is applied to only ~20 of the 225 interactive
+ * controls in this app, so relying on it left the other ~90% — every nav link,
+ * modal close button, table control and form field without the class — with no
+ * visible focus indicator for keyboard users. WCAG 2.4.7 (Focus Visible)
+ * applies to every focusable element, not the ones we remembered to annotate.
+ *
+ * :focus-visible rather than :focus so the ring appears for keyboard and
+ * assistive-tech navigation but not on mouse click, which is what makes an
+ * always-on :focus ring unpopular enough that people delete it.
+ */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Opt-in ring for controls that want the heavier treatment. Kept for the call
+ * sites already using it, now keyed to :focus-visible to match the baseline. */
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-[#0A0A0B];
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0B];
+}
+
+/* Skip link: visually hidden until focused, then pinned to the top-left.
+ * Gives keyboard users a way past the nav on every page (WCAG 2.4.1). */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f97316;
+  color: #0a0a0b;
+  font-weight: 600;
+  border-radius: 0.375rem;
 }
 
 @keyframes pulse-dot {

@@ -46,8 +46,12 @@ services:
         generateValue: true  # Render generates a strong secret on first deploy
       - key: CORS_ORIGIN
         value: https://www.fourdoorai.com,https://fourdoorai.com
+      # Where the WorkOS SSO callback sends the user with their session token.
+      # The apex, not www: www currently serves / but 404s every other route,
+      # so an SSO login would land on a dead page. Both origins stay in
+      # CORS_ORIGIN above, which costs nothing once www is repaired.
       - key: FRONTEND_URL
-        value: https://www.fourdoorai.com
+        value: https://fourdoorai.com
 
       # Neon scales its compute to zero; a non-zero idle floor would hold a
       # connection open forever and keep it awake.
@@ -73,6 +77,28 @@ services:
         sync: false
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+
+      # --- WorkOS. Optional, but the login page's "Continue with SSO" button is
+      # dead without it: /api/auth/sso/authorize returns 503 unless BOTH
+      # WORKOS_API_KEY and WORKOS_CLIENT_ID are set (isSsoEnabled() in
+      # workosService.js requires the client and the client id together).
+      #
+      # Leaving these unset is a supported state — password login works fine and
+      # every WorkOS call is a no-op. Set them only if you want SSO. ---
+      - key: WORKOS_API_KEY
+        sync: false
+      - key: WORKOS_CLIENT_ID
+        sync: false
+      # Must be THIS service's public URL + /api/auth/sso/callback, and must be
+      # registered identically in the WorkOS dashboard. It cannot be hardcoded
+      # here because the service URL is not known until Render creates it; the
+      # code falls back to localhost, which is wrong in production.
+      - key: WORKOS_REDIRECT_URI
+        sync: false
+      # Audit Log streaming only. Separate from SSO: logAgent() is a no-op
+      # without it even when SSO is fully working.
+      - key: WORKOS_ORGANIZATION_ID
+        sync: false
 
       # The three node-cron jobs start with the process. On the free plan the
       # service sleeps when idle, so they will not fire on schedule — set this
