@@ -34,6 +34,24 @@ const FOCUSABLE = [
 export default function useDialogA11y(isOpen, onClose) {
   const containerRef = useRef(null);
   const previouslyFocused = useRef(null);
+  const onCloseRef = useRef(onClose);
+
+  // Hold the latest onClose in a ref, and keep it OUT of the effect's
+  // dependencies below.
+  //
+  // Every call site passes an inline arrow (`() => setIsOpen(false)`), which is
+  // a fresh reference on every render. With onClose in the dependency array the
+  // whole effect tore down and re-ran on each render — including the
+  // focus-the-first-control step. In a dialog with a controlled input that
+  // meant every keystroke re-rendered, re-ran the effect, and moved focus to
+  // the first focusable element, which in DocumentationModal is the close
+  // button: the search box became unusable after one character.
+  //
+  // The effect must run on open/close transitions only, so it depends on
+  // `isOpen` alone and reads the callback through this ref at call time.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -51,7 +69,7 @@ export default function useDialogA11y(isOpen, onClose) {
     const onKeyDown = (event) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
       if (event.key !== 'Tab' || !containerRef.current) return;
@@ -85,7 +103,7 @@ export default function useDialogA11y(isOpen, onClose) {
         previouslyFocused.current.focus();
       }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   return containerRef;
 }
