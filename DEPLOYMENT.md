@@ -235,12 +235,22 @@ ends below).
 3. Check both hostnames after deploying. `www` and the apex are separate aliases
    and can point at entirely different projects.
 
-**`www.fourdoorai.com` currently does not serve this application at all.** It
-returns a Vite single-page app titled "My Google AI Studio App" — no source for
-it exists in this repository — which is why `/` answers 200 while `/login` and
-every other route 404: that SPA has no such route. The apex is the only hostname
-serving the real frontend. Point `www` at the same project as the apex, or
-redirect it there.
+**`www.fourdoorai.com` does not serve this application.** It now returns Vercel's
+`NOT_FOUND` page on every route — `/`, `/login`, `/pricing` alike. The hostname
+resolves to Vercel but is not attached to a deployment, so there is nothing
+behind it. The apex is the only hostname serving the real frontend. Point `www`
+at the same project as the apex, or redirect it there.
+
+This replaced an earlier failure mode, worth recording because the symptom
+changed while the conclusion did not. `www` previously served an unrelated Vite
+single-page app titled "My Google AI Studio App", with no source anywhere in this
+repository: `/` answered 200 with that app while every other route 404'd, because
+that SPA had no such route. That deployment has since been detached, leaving the
+hostname empty rather than wrong.
+
+Either way `www` has never served this frontend, which is why `FRONTEND_URL` in
+`render.yaml` points at the apex. Re-check what `www` actually returns before
+relying on it — it has changed once already.
 
 Two Vercel projects exist for this repository, which is worth knowing before
 changing settings:
