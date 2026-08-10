@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Navigation from '../components/Navigation';
+import Seo from '../components/Seo';
 import { useAuthStore } from '../lib/store';
 
 export default function SignupPage() {
@@ -40,8 +41,10 @@ export default function SignupPage() {
 
   return (
     <>
+      <Seo title="Create an account" description="Start your Fourdoor AI Growth workspace and put lead generation on autopilot." />
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <Navigation />
-      <main className="flex min-h-[calc(100vh-65px)] items-center justify-center bg-[#0A0A0B] px-4 py-8">
+      <main id="main-content" className="flex min-h-[calc(100vh-65px)] items-center justify-center bg-[#0A0A0B] px-4 py-8">
         <section className="w-full max-w-md rounded-xl border border-white/10 bg-[#141416] p-6 shadow-xl">
           <div className="mb-4 flex items-center justify-between">
             <Link href="/" className="inline-flex items-center text-xs font-medium text-neutral-400 hover:text-white transition-colors">
@@ -71,13 +74,16 @@ export default function SignupPage() {
             <div className="h-px flex-1 bg-white/10" />
           </div>
 
-          {error && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
+          {error && <div role="alert" className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
             <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-300">Full Name</label>
+              <label htmlFor="signup-name" className="mb-1 block text-xs font-medium text-neutral-300">Full Name</label>
               <input
-                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                id="signup-name"
+                name="name"
+                autoComplete="name"
+                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                 type="text"
                 placeholder="Alex Morgan"
                 value={formData.name}
@@ -87,9 +93,12 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-300">Work Email</label>
+              <label htmlFor="signup-email" className="mb-1 block text-xs font-medium text-neutral-300">Work Email</label>
               <input
-                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                id="signup-email"
+                name="email"
+                autoComplete="email"
+                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                 type="email"
                 placeholder="alex@company.com"
                 value={formData.email}
@@ -99,9 +108,12 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-300">Password</label>
+              <label htmlFor="signup-password" className="mb-1 block text-xs font-medium text-neutral-300">Password</label>
               <input
-                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                id="signup-password"
+                name="password"
+                autoComplete="new-password"
+                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                 type="password"
                 placeholder="At least 8 characters"
                 value={formData.password}
@@ -112,9 +124,12 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-300">Company Name (Optional)</label>
+              <label htmlFor="signup-company" className="mb-1 block text-xs font-medium text-neutral-300">Company Name (Optional)</label>
               <input
-                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500 focus:outline-none"
+                id="signup-company"
+                name="organization"
+                autoComplete="organization"
+                className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-orange-500"
                 type="text"
                 placeholder="Acme Growth Co."
                 value={formData.company}

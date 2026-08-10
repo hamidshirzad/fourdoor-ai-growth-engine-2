@@ -47,10 +47,15 @@ export default function Navigation() {
 
         <div className="flex items-center gap-3">
           {!publicPage && (
+            /* Below `sm` the label and the ⌘K hint are both display:none, so this
+             * collapses to a bare icon with no accessible name. `title` is an
+             * unreliable fallback — ignored by some screen readers and never
+             * surfaced on touch — so the button is named explicitly. */
             <button
               onClick={openDocsModal}
               className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#18181d] px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:bg-white/10 hover:text-white transition shadow-sm"
               title="Search Documentation & FAQs (⌘K)"
+              aria-label="Search documentation and FAQs"
             >
               <Search size={14} className="text-orange-400" />
               <span className="hidden sm:inline">Docs & FAQs</span>
@@ -60,7 +65,10 @@ export default function Navigation() {
             </button>
           )}
 
-          <nav className="hidden items-center gap-1.5 md:flex">
+          {/* Named because the marketing pages render their own <nav>; two
+            * unlabelled navigation landmarks are indistinguishable in a screen
+            * reader's landmark list. */}
+          <nav aria-label="Main" className="hidden items-center gap-1.5 md:flex">
             {publicPage ? (
               <>
                 <MotionLink
@@ -89,6 +97,10 @@ export default function Navigation() {
                 <MotionLink
                   key={item.href}
                   href={item.href}
+                  /* The active item is signalled only by an orange background.
+                   * aria-current gives non-sighted users the same "you are
+                   * here" information (WCAG 1.3.1). */
+                  aria-current={active ? 'page' : undefined}
                   className={`flex items-center gap-2 rounded px-3 py-2 text-sm font-medium transition-colors ${
                     active
                       ? 'bg-orange-500 text-neutral-950 shadow-sm'

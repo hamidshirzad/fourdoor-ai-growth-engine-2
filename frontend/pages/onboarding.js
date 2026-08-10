@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Navigation from '../components/Navigation';
+import Seo from '../components/Seo';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { apiCall } from '../lib/api';
 import { useAuthStore } from '../lib/store';
@@ -25,8 +26,10 @@ export default function OnboardingPage() {
 
   return (
     <ProtectedRoute>
+      <Seo title="Onboarding" description="Tell Fourdoor AI about your niche, audience and goal to generate your first posts." noindex />
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <Navigation />
-      <main className="min-h-screen bg-[#0A0A0B] px-4 py-8">
+      <main id="main-content" className="min-h-screen bg-[#0A0A0B] px-4 py-8">
         <div className="mx-auto max-w-5xl">
           <h1 className="text-3xl font-semibold text-neutral-50">Set Up Your Growth Engine</h1>
           <p className="mt-1 text-sm text-neutral-400">Add your market context, generate your first post, then connect channels.</p>

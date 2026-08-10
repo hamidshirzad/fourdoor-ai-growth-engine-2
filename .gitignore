@@ -8,6 +8,11 @@ auth0/.env.auth0
 .DS_Store
 *.log
 
+# The Netlify build runs `npm install --workspaces=false` inside frontend/ (see
+# netlify.toml), which writes a lockfile there. The workspace lockfile at the
+# repository root stays the source of truth.
+frontend/package-lock.json
+
 # Build output
 .next/
 out/

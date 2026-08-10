@@ -1,4 +1,4 @@
-import Head from 'next/head';
+import Seo from '../components/Seo';
 import Nav from '../components/marketing/Nav';
 import AutopilotHero from '../components/marketing/AutopilotHero';
 import Features from '../components/marketing/Features';
@@ -10,15 +10,12 @@ import Footer from '../components/marketing/Footer';
 export default function IndexPage() {
   return (
     <div className="bg-[#0A0A0B]">
-      <Head>
-        <title>Fourdoor AI — Your AI Team Works 24/7 On Autopilot</title>
-        <meta
-          name="description"
-          content="Fourdoor AI generates content, distributes it across platforms, engages your audience, qualifies leads, and books sales calls — completely automatically."
-        />
-      </Head>
+      {/* No `title` prop: the homepage keeps the untitled-page default, which is
+        * the full brand line rather than "Home | Fourdoor AI". */}
+      <Seo description="Fourdoor AI generates content, distributes it across platforms, engages your audience, qualifies leads, and books sales calls — completely automatically." />
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <Nav />
-      <main>
+      <main id="main-content">
         <AutopilotHero />
         <Features />
         <GrowthDashboard />
