@@ -318,7 +318,15 @@ exactly `true` only when you mean it. The CI workflow already handles this: it e
 ### Multiple environments
 
 `AUTH0_KEYWORD_REPLACE_MAPPINGS` in `config.json` is empty because there is currently one
-tenant. When a second (e.g. production) tenant appears, replace environment-specific values
-in the exported YAML with `##KEYWORD##` markers and supply per-environment values either by
-editing the mappings or by setting `AUTH0_KEYWORD_REPLACE_MAPPINGS` as a JSON string in the
-environment, which overrides the file.
+tenant, and it must **stay** empty. When a second (e.g. production) tenant appears, replace
+environment-specific values in the exported YAML with `##KEYWORD##` markers — remembering to
+**quote them**, since an unquoted `key: ##FOO##` is a YAML comment — and give each tenant its
+own GitHub environment carrying its own `AUTH0_KEYWORD_REPLACE_MAPPINGS` secret plus its own
+Auth0 credentials.
+
+> **Never put mapping values in `config.json`.** Marker values are things like SMTP passwords
+> and provider client secrets, and that file is tracked — committing one puts it in Git
+> history for good, where deleting the file later does not remove it. This is also why the
+> environment secret exists and why the file table above can promise `config.json` holds no
+> credentials. An earlier revision of this document offered editing the file as an
+> alternative; it should not have.

@@ -27,6 +27,7 @@ import path from 'node:path';
 import yaml from 'js-yaml';
 
 const TENANT_DIR = process.argv[2] || 'auth0/tenant';
+const CONFIG_FILE = process.argv[3] || 'auth0/config.json';
 
 // Exactly the shape the CLI strips for you.
 const CLI_STRIPS = /^(##[A-Z0-9_]+##|@@[A-Z0-9_]+@@)$/;
@@ -65,6 +66,7 @@ function listFiles(dir, out = []) {
 export function scanTenantDir(dir) {
   const risky = new Map(); // marker -> Set(file)
   const safe = new Set();
+  const unquoted = new Map(); // marker -> file, swallowed by YAML parsing
   const note = (marker, file) => {
     if (!risky.has(marker)) risky.set(marker, new Set());
     risky.get(marker).add(file);
@@ -83,20 +85,32 @@ export function scanTenantDir(dir) {
         for (const m of text.matchAll(ANY_MARKER)) note(m[1], file);
         continue;
       }
+
+      const seenInValues = new Set();
       walkValues(doc, (value) => {
+        for (const m of value.matchAll(ANY_MARKER)) seenInValues.add(m[1]);
         if (CLI_STRIPS.test(value)) {
           safe.add(value);
           return;
         }
         for (const m of riskyMarkers(value)) note(m, file);
       });
+
+      // A marker in the raw text that survived parsing but is absent from every
+      // parsed value was swallowed by YAML. Unquoted `key: ##FOO##` is a comment,
+      // so the value parses as null — and an import then writes that null over
+      // the credential instead of preserving or substituting it. Walking parsed
+      // values alone cannot see this, so compare against the raw text.
+      for (const m of text.matchAll(ANY_MARKER)) {
+        if (!seenInValues.has(m[1])) unquoted.set(m[1], file);
+      }
     } else {
       // Raw assets (page HTML, rule scripts): a marker here is always embedded.
       for (const m of text.matchAll(ANY_MARKER)) note(m[1], file);
     }
   }
 
-  return { risky, safe };
+  return { risky, safe, unquoted };
 }
 
 export function loadMappings(env = process.env) {
@@ -122,17 +136,43 @@ function main() {
     process.exit(1);
   }
 
-  const { value: allowDelete, wasCoerced } = normalizeAllowDelete(process.env.AUTH0_ALLOW_DELETE);
-  if (wasCoerced) {
-    console.error('AUTH0_ALLOW_DELETE is set to a falsy-looking string in this environment.');
-    console.error('Parts of the CLI read it with a raw truthy test, so the string "false"');
-    console.error('would ENABLE deletion. Unset it instead:\n');
-    console.error('  unset AUTH0_ALLOW_DELETE\n');
-    console.error('Set it to exactly "true" only when you intend a destructive sync.');
+  // Check BOTH sources the CLI reads. Checking only the environment missed the
+  // one place the switch is version-controlled: `"AUTH0_ALLOW_DELETE": true` in
+  // config.json would sail through here and then delete during the import that
+  // runs seconds later.
+  let fileConfig = {};
+  try {
+    fileConfig = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+  } catch (err) {
+    console.error(`Could not read ${CONFIG_FILE}: ${err.message}`);
     process.exit(1);
   }
-  if (allowDelete !== undefined) {
-    console.warn(`AUTH0_ALLOW_DELETE=${allowDelete} — deletion is ENABLED for this import.`);
+
+  for (const [source, raw] of [
+    ['environment', process.env.AUTH0_ALLOW_DELETE],
+    [CONFIG_FILE, fileConfig.AUTH0_ALLOW_DELETE],
+  ]) {
+    // A real boolean false in the config file is the safe, intended default —
+    // only a *string* is dangerous, because that is what the raw truthy checks
+    // misread. Skip the boolean case.
+    if (raw === false || raw === undefined || raw === null) continue;
+
+    const { value, wasCoerced } = normalizeAllowDelete(raw);
+    if (wasCoerced) {
+      console.error(`AUTH0_ALLOW_DELETE is a falsy-looking string in ${source}.`);
+      console.error('Parts of the CLI read it with a raw truthy test, so the string "false"');
+      console.error('would ENABLE deletion — the opposite of how it reads.\n');
+      console.error(
+        source === 'environment'
+          ? '  unset AUTH0_ALLOW_DELETE\n'
+          : `  set it to the boolean false (not "false") in ${source}\n`
+      );
+      console.error('Use exactly true only when you intend a destructive sync.');
+      process.exit(1);
+    }
+    if (value !== undefined) {
+      console.warn(`AUTH0_ALLOW_DELETE=${value} (from ${source}) — deletion is ENABLED for this import.`);
+    }
   }
 
   let mappings;
@@ -143,7 +183,19 @@ function main() {
     process.exit(1);
   }
 
-  const { risky, safe } = scanTenantDir(TENANT_DIR);
+  const { risky, safe, unquoted } = scanTenantDir(TENANT_DIR);
+
+  if (unquoted.size) {
+    console.error(`\nRefusing to import: ${unquoted.size} marker(s) are not quoted.`);
+    console.error('YAML reads an unquoted ## as a comment, so the value parses as null and');
+    console.error('the import writes null over the real credential.\n');
+    for (const [marker, file] of [...unquoted].sort(([a], [b]) => a.localeCompare(b))) {
+      console.error(`  ${marker}  (${file})`);
+    }
+    console.error('\nQuote them, e.g.  client_secret: "##SMTP_PASS##"');
+    process.exit(1);
+  }
+
   if (safe.size) {
     console.log(
       `${safe.size} standalone marker(s) present; the CLI strips these and preserves the ` +
