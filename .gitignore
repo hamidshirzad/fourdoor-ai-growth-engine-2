@@ -2,6 +2,9 @@ node_modules/
 .env
 .env.local
 .env.*.local
+# Auth0 Deploy CLI credentials. The .env pattern above matches only files named
+# exactly ".env", so this one needs naming explicitly.
+auth0/.env.auth0
 .DS_Store
 *.log
 

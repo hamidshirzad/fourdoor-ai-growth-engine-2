@@ -86,11 +86,15 @@ All agents use a single `structuredResponse()` helper that calls the OpenAI **Re
 
 ### Automated Schedulers (`backend/src/services/scheduler.js`)
 
-Three `node-cron` jobs start on boot (unless `DISABLE_SCHEDULERS=true`):
+Four `node-cron` jobs start on boot (unless `DISABLE_SCHEDULERS=true`):
 
 - **9 AM daily** (`CONTENT_CRON`) — generates posts for every active campaign
 - **Every 5 min** (`PUBLISH_CRON`) — publishes scheduled posts via `distributionService`
 - **6 PM daily** (`OPTIMIZATION_CRON`) — runs `analyticsAgent` for every user
+- **3 AM daily** (`SECURITY_SCAN_CRON`) — scans post captions that have no
+  `security_scans` row yet, catching posts created before `AIKIDO_API_KEY` was
+  configured and posts whose inline scan hit an API error. Registered only when
+  Aikido is configured, so the anti-join never runs on installs without a key.
 
 ### Frontend State (`frontend/lib/store.js`)
 
@@ -133,7 +137,7 @@ Aikido Security API integration scans AI-generated content and code for vulnerab
 **Integration Points:**
 - Post-generation — `contentService.generateDailyContent()` calls `aikidoService.scanContent()` after generating posts
 - Optional pre-publish — can block publishing if critical vulnerabilities detected (currently warns instead)
-- Optional scheduled scans — can add `SECURITY_SCAN_CRON` to `scheduler.js` for periodic audits
+- Scheduled backfill — `SECURITY_SCAN_CRON` in `scheduler.js` re-scans unscanned posts nightly (see Automated Schedulers above)
 
 ### WorkOS (`backend/src/services/workosService.js`)
 
@@ -216,6 +220,9 @@ Migrations run sequentially from a plain array in `migrations.js` (no migration 
 | `OPENAI_MODEL` | Default `gpt-4o-mini` |
 | `AIKIDO_API_KEY` | Optional; security scanning disabled gracefully if absent |
 | `AIKIDO_API_BASE_URL` | Aikido Security API endpoint (default `https://api.aikido.io`) |
+| `SECURITY_SCAN_CRON` | Nightly backfill scan schedule (default `0 3 * * *`); the job is only registered when `AIKIDO_API_KEY` is set |
+| `SECURITY_SCAN_LOOKBACK_DAYS` | How far back the backfill looks for unscanned posts (default `7`) |
+| `SECURITY_SCAN_BATCH_SIZE` | Max posts scanned per backfill run (default `100`) |
 | `DYNAMODB_AGENT_LOGS_TABLE` | Optional; when set, agent activity logs are mirrored to this DynamoDB table via `dynamoService.js` (Postgres stays the source of truth) |
 | `AGENT_LOGS_RETENTION_DAYS` | TTL for mirrored DynamoDB agent-log items (default `90`) |
 | `WORKOS_API_KEY` | Optional; enables WorkOS (`workosService.js`) — Audit Log streaming and AuthKit SSO |

@@ -1,0 +1,150 @@
+name: Auth0 Tenant Config
+
+# Manual dispatch only, by design.
+#
+# There is deliberately no `push:` trigger. This workflow can rewrite the
+# configuration of the Auth0 tenant that governs login, so an accidental merge
+# must never be able to fire it. Every run is started by a human, and the
+# `environment:` below adds a second approval gate if you configure required
+# reviewers on it in the repository settings.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'export = read tenant into an artifact; import = write repo config to the tenant'
+        required: true
+        type: choice
+        options:
+          - export
+          - import
+        default: export
+      allow_delete:
+        description: 'DANGER: let an import DELETE tenant resources missing from the repo config'
+        required: false
+        type: boolean
+        default: false
+
+# The tenant is shared mutable state, so runs must not overlap. Two imports
+# interleaving would leave a configuration matching neither input file, and an
+# export racing an import would capture a half-applied transition. Queue instead
+# of cancelling: a cancelled import is a partly-applied import.
+concurrency:
+  group: auth0-tenant
+  cancel-in-progress: false
+
+jobs:
+  a0deploy:
+    runs-on: ubuntu-latest
+    # Configure required reviewers on this environment to gate tenant writes.
+    environment: auth0
+    steps:
+      # A fast, legible failure — NOT a security control. Do not rely on it.
+      #
+      # workflow_dispatch runs the workflow definition from the ref the caller
+      # selects, so anyone who can push a branch can edit or delete this step on
+      # that branch and dispatch an import from it, along with an unreviewed
+      # tenant.yaml. A check cannot defend against a caller who controls the file
+      # containing the check.
+      #
+      # The actual boundary is configured outside the repository, and is required
+      # setup rather than optional hardening (see auth0/README.md):
+      #   - a deployment branch restriction on the `auth0` environment, and
+      #   - the credentials stored as ENVIRONMENT secrets on `auth0`, not as
+      #     repository secrets — repository secrets are readable by any job in
+      #     the repo, which would make the environment's gates decorative.
+      # With both set, a branch-dispatched import receives no credentials at all.
+      #
+      # Note that `environment:` is evaluated per JOB, before any step-level `if`.
+      # Export and import share this job, so the environment's branch restriction
+      # applies to exports too — they are read-only, but they are NOT exempt from
+      # the default-branch rule. Splitting them into separate jobs with separate
+      # environments would allow that, at the cost of a second credential set.
+      - name: Imports must run from the default branch
+        if: inputs.action == 'import' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          echo "Refusing to import from '${{ github.ref_name }}'."
+          echo "Tenant config must be reviewed and merged into '${{ github.event.repository.default_branch }}' first, then imported from there."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # auth0-deploy-cli declares engines.node >= 20.19.0. Bare '20' resolves
+          # to the newest 20.x, which satisfies that today but only by accident
+          # of timing; pin the floor so a future resolution cannot drop below it.
+          node-version: '20.19'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export tenant config
+        if: inputs.action == 'export'
+        env:
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+        run: |
+          npx a0deploy export \
+            --config_file auth0/config.json \
+            --format yaml \
+            --output_folder auth0/tenant
+
+      # CI does not commit. Download this artifact, review the diff, and commit
+      # it yourself — reviewing what changed in the tenant is the whole point.
+      - name: Upload exported config
+        if: inputs.action == 'export'
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth0-tenant-config
+          path: auth0/tenant
+
+      # Pre-flight checks, shared with the local `npm run auth0:import` path so
+      # both get the same protection. See auth0/preflight.mjs for what it checks
+      # and why: an inherited falsy-string AUTH0_ALLOW_DELETE, and keyword
+      # markers outside the shape the CLI safely strips.
+      - name: Pre-flight checks
+        if: inputs.action == 'import'
+        env:
+          AUTH0_ALLOW_DELETE: ${{ inputs.allow_delete && 'true' || '' }}
+          # Marker values: add one line per marker, alongside a matching secret
+          # on the `auth0` environment. A JSON blob does not work — see below.
+          # SMTP_PASS: ${{ secrets.SMTP_PASS }}
+        run: npm run auth0:preflight
+
+      - name: Import tenant config
+        if: inputs.action == 'import'
+        env:
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+          # Values for the ##MARKER## placeholders the export writes in place of
+          # secrets: ONE VARIABLE PER MARKER, named exactly as the marker.
+          #
+          # A JSON object in AUTH0_KEYWORD_REPLACE_MAPPINGS does NOT work.
+          # commands/import.js reads that variable through nconf, which returns
+          # it as a raw string, then Object.assign()s process.env over it — the
+          # JSON is never parsed, so it contributes no keys. Only real
+          # environment variables resolve. Keep this list in step with the
+          # pre-flight step above.
+          # SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          # Emit 'true' or the empty string — never the literal 'false'.
+          #
+          # Env values are always strings, and the CLI is inconsistent about how
+          # it reads this one. Some handlers compare strictly
+          # (`=== 'true' || === true`, e.g. handlers/default.js:295), but others
+          # take the raw value as a boolean: `!!config('AUTH0_ALLOW_DELETE')` in
+          # handlers/default.js:224 and handlers/rules.js:106, and the bail-out
+          # guards `if (!config('AUTH0_ALLOW_DELETE'))` in handlers/themes.js:564
+          # and handlers/phoneProvider.js:183.
+          #
+          # `!!'false'` is true, so passing ${{ inputs.allow_delete }} directly
+          # would ENABLE deletes in those handlers with the checkbox unchecked —
+          # the precise opposite of what the input says. The empty string is
+          # falsy under both styles, so unchecked stays genuinely off.
+          AUTH0_ALLOW_DELETE: ${{ inputs.allow_delete && 'true' || '' }}
+        run: |
+          npx a0deploy import \
+            --config_file auth0/config.json \
+            --input_file auth0/tenant/tenant.yaml
