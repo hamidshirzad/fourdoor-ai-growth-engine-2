@@ -181,12 +181,37 @@ The workflow's **Reject unresolved keyword markers** step exists for exactly the
 a deliberately broader shape than the CLI strips — both `##…##` and `@@…@@`, any key
 characters — and fails the import listing every marker without a replacement.
 
-**Keep mappings in the environment secret, not in `config.json`.** Supply them as a JSON
-object in `AUTH0_KEYWORD_REPLACE_MAPPINGS` on the `auth0` environment. The environment value
-replaces the file setting rather than merging with it, so mappings split across both sources
-are a trap: the file's keys would look present locally while the CLI never sees them.
-`config.json` ships with the mappings empty for that reason. Individual environment variables
-also satisfy markers, since `commands/import.js` merges `process.env` into the mapping set.
+### Supplying marker values
+
+**One environment variable per marker, named exactly as the marker.** `##SMTP_PASS##` is
+satisfied by a variable called `SMTP_PASS`, and by nothing else.
+
+> **A JSON object in `AUTH0_KEYWORD_REPLACE_MAPPINGS` does not work.** It is the obvious thing
+> to try and it fails silently. `commands/import.js` reads that variable through nconf, which
+> returns it as a raw **string**, then `Object.assign()`s `process.env` over it — the JSON is
+> never parsed, so it contributes no keys at all. Verified: a blob of `{"SMTP_PASS":"…"}`
+> yields `undefined` for `SMTP_PASS`, while an env var named `SMTP_PASS` resolves.
+>
+> Pre-flight refuses to run if it sees `AUTH0_KEYWORD_REPLACE_MAPPINGS` set, rather than
+> letting you believe it took effect.
+
+For each marker:
+
+1. Add an **environment secret** on `auth0` named after the marker (`SMTP_PASS`).
+2. Add a matching line to **both** the pre-flight and import steps in
+   `.github/workflows/auth0-deploy.yml`:
+
+   ```yaml
+   SMTP_PASS: ${{ secrets.SMTP_PASS }}
+   ```
+
+The second step is unavoidable: Actions cannot splat a whole secrets namespace into the
+environment, so each marker is listed explicitly. That is more verbose but it means the
+workflow file states exactly which secrets an import can read.
+
+Locally, export the same variables before `npm run auth0:import`.
+
+**Never put mapping values in `config.json`.** They are credentials and that file is tracked.
 
 ---
 
@@ -326,7 +351,12 @@ Auth0 credentials.
 
 > **Never put mapping values in `config.json`.** Marker values are things like SMTP passwords
 > and provider client secrets, and that file is tracked — committing one puts it in Git
-> history for good, where deleting the file later does not remove it. This is also why the
-> environment secret exists and why the file table above can promise `config.json` holds no
-> credentials. An earlier revision of this document offered editing the file as an
-> alternative; it should not have.
+> history for good, where deleting the file later does not remove it. An earlier revision of
+> this document offered editing the file as an alternative; it should not have.
+
+**A second tenant needs more than a second environment.** The workflow currently hard-codes
+`environment: auth0` and fixed `--config_file` / `--input_file` paths, so creating an
+`auth0-production` environment alone changes nothing — a run would still resolve credentials
+from `auth0`. Supporting a second tenant means adding a tenant input to the workflow and
+mapping it to the environment and paths, or copying the workflow per tenant. That work is not
+done; do not assume the environments alone are sufficient.

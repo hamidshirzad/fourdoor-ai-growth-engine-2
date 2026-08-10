@@ -48,6 +48,26 @@ export function riskyMarkers(value) {
   return [...value.matchAll(ANY_MARKER)].map((m) => m[1]);
 }
 
+// Markers a YAML parser will swallow: those sitting where a value belongs, so
+// the key ends up null. Returns one entry per occurrence — never deduplicated by
+// name, since the same marker can appear quoted in one place and unquoted in
+// another, and the unquoted one is the dangerous one.
+export function unquotedMarkersInLine(line) {
+  if (/^\s*#/.test(line)) return []; // a whole-line comment harms nothing
+
+  const start = line.match(/(^|\s)#/); // where an inline comment begins
+  if (!start) return [];
+
+  const at = start.index + start[0].length - 1;
+  const before = line.slice(0, at);
+
+  // Only a value position matters: `key:` or a bare list dash with nothing after
+  // it. `key: value  # note ##FOO##` keeps its value and is fine.
+  if (!/:\s*$/.test(before) && !/^\s*-\s*$/.test(before)) return [];
+
+  return [...line.slice(at).matchAll(ANY_MARKER)].map((m) => m[1]);
+}
+
 function walkValues(node, visit) {
   if (node === null || node === undefined) return;
   if (typeof node === 'string') return visit(node);
@@ -66,7 +86,7 @@ function listFiles(dir, out = []) {
 export function scanTenantDir(dir) {
   const risky = new Map(); // marker -> Set(file)
   const safe = new Set();
-  const unquoted = new Map(); // marker -> file, swallowed by YAML parsing
+  const unquoted = []; // { marker, file, line } per occurrence, not per name
   const note = (marker, file) => {
     if (!risky.has(marker)) risky.set(marker, new Set());
     risky.get(marker).add(file);
@@ -86,9 +106,7 @@ export function scanTenantDir(dir) {
         continue;
       }
 
-      const seenInValues = new Set();
       walkValues(doc, (value) => {
-        for (const m of value.matchAll(ANY_MARKER)) seenInValues.add(m[1]);
         if (CLI_STRIPS.test(value)) {
           safe.add(value);
           return;
@@ -96,14 +114,18 @@ export function scanTenantDir(dir) {
         for (const m of riskyMarkers(value)) note(m, file);
       });
 
-      // A marker in the raw text that survived parsing but is absent from every
-      // parsed value was swallowed by YAML. Unquoted `key: ##FOO##` is a comment,
-      // so the value parses as null — and an import then writes that null over
-      // the credential instead of preserving or substituting it. Walking parsed
-      // values alone cannot see this, so compare against the raw text.
-      for (const m of text.matchAll(ANY_MARKER)) {
-        if (!seenInValues.has(m[1])) unquoted.set(m[1], file);
-      }
+      // Unquoted `key: ##FOO##` is a YAML comment, so the value parses as null
+      // and an import writes that null over the credential. Parsed values cannot
+      // reveal this, so inspect the raw lines — per occurrence, and only where a
+      // value should have been. An earlier version compared marker *names*
+      // against the parsed set, which both masked an unquoted marker whenever
+      // the same name appeared quoted elsewhere, and flagged ordinary comments
+      // like `# preserve ##FOO## during bootstrap` that harm nothing.
+      text.split(/\r?\n/).forEach((line, i) => {
+        for (const marker of unquotedMarkersInLine(line)) {
+          unquoted.push({ marker, file, line: i + 1 });
+        }
+      });
     } else {
       // Raw assets (page HTML, rule scripts): a marker here is always embedded.
       for (const m of text.matchAll(ANY_MARKER)) note(m[1], file);
@@ -114,19 +136,21 @@ export function scanTenantDir(dir) {
 }
 
 export function loadMappings(env = process.env) {
-  // Mirrors commands/import.js: the AUTH0_KEYWORD_REPLACE_MAPPINGS value, with
-  // process.env merged in. config.json is not consulted — the environment value
-  // replaces the file setting rather than merging with it.
-  const mappings = {};
-  const raw = (env.AUTH0_KEYWORD_REPLACE_MAPPINGS || '').trim();
-  if (raw) {
-    try {
-      Object.assign(mappings, JSON.parse(raw));
-    } catch {
-      throw new Error('AUTH0_KEYWORD_REPLACE_MAPPINGS is not valid JSON.');
-    }
-  }
-  return Object.assign(mappings, env);
+  // One environment variable per marker — nothing else resolves.
+  //
+  // commands/import.js does:
+  //   const mappings = nconf.get('AUTH0_KEYWORD_REPLACE_MAPPINGS') || {};
+  //   nconf.set('AUTH0_KEYWORD_REPLACE_MAPPINGS', Object.assign(mappings, process.env));
+  //
+  // nconf returns that variable as a raw *string*, and Object.assign never
+  // parses it, so a JSON object in AUTH0_KEYWORD_REPLACE_MAPPINGS supplies no
+  // keys at all. Verified: a blob of {"SMTP_PASS":"…"} yields undefined for
+  // SMTP_PASS, while an env var named SMTP_PASS resolves.
+  //
+  // This used to parse that JSON, which meant pre-flight approved imports the
+  // CLI could not resolve — the guard clearing exactly the failure it exists to
+  // catch. Validate only what the CLI can actually see.
+  return { ...env };
 }
 
 function main() {
@@ -175,22 +199,25 @@ function main() {
     }
   }
 
-  let mappings;
-  try {
-    mappings = loadMappings();
-  } catch (err) {
-    console.error(err.message);
+  const mappings = loadMappings();
+
+  if ((process.env.AUTH0_KEYWORD_REPLACE_MAPPINGS || '').trim()) {
+    console.error('AUTH0_KEYWORD_REPLACE_MAPPINGS is set, but the CLI never parses it.');
+    console.error('nconf hands it to Object.assign as a raw string, so a JSON object here');
+    console.error('supplies no keys. Set one variable per marker instead:\n');
+    console.error('  ##SMTP_PASS##  ->  a secret named SMTP_PASS\n');
+    console.error('See auth0/README.md, "Supplying marker values".');
     process.exit(1);
   }
 
   const { risky, safe, unquoted } = scanTenantDir(TENANT_DIR);
 
-  if (unquoted.size) {
-    console.error(`\nRefusing to import: ${unquoted.size} marker(s) are not quoted.`);
+  if (unquoted.length) {
+    console.error(`\nRefusing to import: ${unquoted.length} marker occurrence(s) are not quoted.`);
     console.error('YAML reads an unquoted ## as a comment, so the value parses as null and');
     console.error('the import writes null over the real credential.\n');
-    for (const [marker, file] of [...unquoted].sort(([a], [b]) => a.localeCompare(b))) {
-      console.error(`  ${marker}  (${file})`);
+    for (const { marker, file, line } of unquoted) {
+      console.error(`  ${marker}  (${file}:${line})`);
     }
     console.error('\nQuote them, e.g.  client_secret: "##SMTP_PASS##"');
     process.exit(1);
