@@ -48,25 +48,35 @@ sending before debugging anything else.
 
    **Note that `read:*` is not a real permission.** The Auth0 Deploy CLI docs write scopes
    that way as shorthand, but the dashboard's permission list is resource-specific — there is
-   no wildcard entry to tick. Searching the permissions list for `read:*` finds nothing.
-   Filter by the verb prefix and select every entry, or select the specific resources you
-   intend to manage:
+   no wildcard entry to tick, and searching for `read:*` finds nothing.
+
+   **Do not grant every permission under a verb prefix either.** That sweeps in resources
+   this tooling never touches — most importantly user data (`read:users`,
+   `update:users`, `read:user_idp_tokens`) — and turns a tenant-config credential into a
+   broadly privileged Management API credential. The client secret lives in CI, so its blast
+   radius on exposure is exactly the scopes you grant it.
+
+   Grant only the resource types the Deploy CLI actually manages: **actions, branding, client
+   grants, clients (applications), connections, custom domains, email templates, emails,
+   grants, guardian, hook secrets, log streams, migrations, organizations, pages, prompts,
+   resource servers (APIs), roles, tenant settings, themes.**
 
    | Intent | Grant |
    |---|---|
-   | Export only | every `read:` permission |
-   | Export + import | every `read:`, `create:`, and `update:` permission |
-   | Deletion | additionally every `delete:` permission — only alongside `AUTH0_ALLOW_DELETE=true`, which should not be your default. See the warning below. |
+   | Export only | `read:` on the resource types above |
+   | Export + import | `read:`, `create:`, `update:` on those types |
+   | Deletion | additionally `delete:` — only alongside `AUTH0_ALLOW_DELETE=true`, which should not be your default. See the warning below. |
 
-   Concretely, "every `read:` permission" means entries like `read:clients`,
-   `read:client_grants`, `read:connections`, `read:resource_servers`, `read:rules`,
-   `read:roles`, `read:organizations`, `read:tenant_settings`, `read:custom_domains`,
-   `read:email_templates`, `read:actions`, `read:log_streams`, `read:prompts`, and so on —
-   one per resource type the CLI handles.
+   So for export that means `read:clients`, `read:client_grants`, `read:connections`,
+   `read:resource_servers`, `read:roles`, `read:organizations`, `read:tenant_settings`,
+   `read:custom_domains`, `read:email_templates`, `read:email_provider`, `read:actions`,
+   `read:log_streams`, `read:prompts`, `read:branding`, `read:guardian_factors`, and the
+   corresponding `create:`/`update:` entries for import — and *not* the user, device
+   credential, or log scopes.
 
-   The authoritative, version-specific list is in the Deploy CLI's own documentation; because
-   the required set changes as the tool adds resource types, prefer selecting the whole verb
-   prefix over hand-picking, and re-check it after a major CLI upgrade.
+   The required set shifts as the CLI adds resource types, so re-check it against the Deploy
+   CLI's version-specific permissions documentation after a major upgrade. If an export fails
+   with a 403 naming a resource type, grant that one rather than widening to a whole prefix.
 
 The Deploy CLI's own application is deliberately not manageable by the CLI, so it cannot
 lock itself out.
@@ -80,11 +90,27 @@ cp auth0/.env.auth0.example auth0/.env.auth0   # gitignored
 Fill in `AUTH0_DOMAIN` (`dev-sfv34zclvdf4noih.auth0.com`), plus the **M2M** application's
 `AUTH0_CLIENT_ID` and `AUTH0_CLIENT_SECRET`.
 
-### CI credentials
+### CI credentials — order matters, and the type of secret matters
 
-Add the same three values as GitHub Actions secrets: `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`,
-`AUTH0_CLIENT_SECRET`. Then create a repository environment named `auth0` and add required
-reviewers to it — that is what gates tenant writes behind a human approval.
+Create the environment **first**, then put the secrets inside it. Do all three steps; the
+first two are what actually enforce anything.
+
+1. **Create a repository environment named `auth0`** (Settings → Environments).
+2. **Add a deployment branch restriction** limiting it to the default branch. This — not the
+   check inside the workflow — is the real enforcement boundary for imports. See
+   "Why the in-workflow branch guard is not the boundary" below.
+3. **Add `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and `AUTH0_CLIENT_SECRET` as *environment*
+   secrets on `auth0`** — not as repository secrets. Optionally add required reviewers.
+
+> **Do not use repository-level secrets here.** Repository secrets are readable by *any*
+> workflow job in the repo, whether or not it declares `environment: auth0`. Storing the M2M
+> credentials at repository level means the approval gate and branch restriction protect
+> nothing: another workflow — including one added on an unmerged branch — could read the
+> credentials and call the Management API directly. Environment secrets are only injected
+> into jobs that declare that environment and satisfy its protection rules.
+>
+> `${{ secrets.AUTH0_CLIENT_SECRET }}` in the workflow resolves identically either way, so
+> this is invisible in the YAML and easy to get wrong.
 
 ---
 
@@ -96,11 +122,35 @@ exported, so run these in order:
 1. Create the M2M app and set credentials (above).
 2. **Export** the live tenant into `auth0/tenant/`.
 3. **Review** the export and commit it. This is the step that makes tenant config
-   reviewable — read the diff rather than committing it blind.
+   reviewable — read the diff rather than committing it blind, and see the secrets note
+   directly below before the first commit.
 4. **Import** is only meaningful once step 3 has happened.
 
 The CI workflow fails fast with an explanatory message if you ask it to import before
 `auth0/tenant/tenant.yaml` exists.
+
+### Secrets in the export — read before the first commit
+
+Step 3 tells you to commit the export, so it is worth being precise about what ends up in Git.
+
+`config.json` pins `AUTH0_EXPORT_SECRETS: false`. With that, the CLI replaces sensitive
+values with `##KEYWORD##` placeholders rather than writing them out — covering email provider
+credentials (`api_key`, SMTP/SES/Azure/MS365 credentials), connection
+`options.client_secret`, and log stream sink secrets (`httpAuthorization`, `splunkToken`,
+`datadogApiKey`, `mixpanelServiceAccountPassword`, `segmentWriteKey`), among others.
+
+That default is what keeps credentials out of the repository, so:
+
+- **Never set `AUTH0_EXPORT_SECRETS=true` (or pass `--export_secrets`) and then commit the
+  result.** It writes the real values into `tenant.yaml`, and committing them puts them in
+  Git history, where deleting the file later does not remove them.
+- **The masking list is a fixed set, not a guarantee.** A resource type the list does not
+  cover can still carry something sensitive. Skim the export for anything credential-shaped
+  before the first commit, and treat that as part of the review in step 3.
+- **The placeholders are why `AUTH0_KEYWORD_REPLACE_MAPPINGS` starts empty.** Once an export
+  contains `##SMTP_PASS##` or similar, an import needs a value for each marker — supply them
+  through the mappings or the environment. An import against unfilled placeholders writes the
+  literal marker text into your tenant.
 
 ---
 
@@ -146,18 +196,36 @@ There is deliberately no `push:` trigger: this workflow can rewrite the tenant t
 login, so an accidental merge must never fire it. `export` runs in CI upload the result as an
 artifact rather than committing it — download it, review the diff, and commit it yourself.
 
-Three further constraints on CI runs:
+Further constraints on CI runs:
 
-- **Imports only run from the default branch.** `workflow_dispatch` lets you choose any ref
-  and `actions/checkout` honours it, so without a guard you could import an unmerged
-  `tenant.yaml` straight to the live tenant and skip review entirely. The workflow refuses
-  that. Exports are read-only and may run from any branch. For defence in depth, also set a
-  **deployment branch restriction** on the `auth0` environment in repository settings, which
-  enforces the same rule outside the workflow file.
-- **Runs are serialized** through a `auth0-tenant` concurrency group with cancellation
+- **Runs are serialized** through an `auth0-tenant` concurrency group with cancellation
   disabled, so two imports cannot interleave and an export cannot capture a half-applied
   import. Queued rather than cancelled, because a cancelled import is a partly-applied one.
 - **Required reviewers** on the `auth0` environment, if you configure them, gate every run.
+- **Imports are refused from any ref but the default branch** — with the important caveat
+  below.
+
+### Why the in-workflow branch guard is not the boundary
+
+The workflow contains a step that fails an import dispatched from a non-default branch. That
+step is a **fast, legible failure, not a security control**, and it should not be relied on
+as one.
+
+`workflow_dispatch` runs the workflow definition *from the ref the caller selects*. Anyone who
+can push a branch can therefore edit or delete that guard on their branch and dispatch an
+import from it, together with an unreviewed `auth0/tenant/tenant.yaml`. The check cannot
+defend against a caller who controls the file containing the check.
+
+What actually enforces it is configuration outside the repository, which is why steps 1–3
+above are not optional:
+
+- the **deployment branch restriction** on the `auth0` environment, which refuses to release
+  the environment to a job running on any other ref; and
+- keeping the credentials as **environment secrets**, so a job that never satisfies the
+  environment's rules never receives them.
+
+With both in place, a branch-dispatched import gets no credentials and fails regardless of
+what the workflow file on that branch says.
 
 ---
 

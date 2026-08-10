@@ -38,14 +38,23 @@ jobs:
     # Configure required reviewers on this environment to gate tenant writes.
     environment: auth0
     steps:
-      # workflow_dispatch lets the caller pick any ref, and actions/checkout
-      # honours it — so without this guard someone could import an unmerged
-      # tenant.yaml straight to the live tenant, skipping the review-and-commit
-      # step this design depends on. Exports are read-only and stay unrestricted.
+      # A fast, legible failure — NOT a security control. Do not rely on it.
       #
-      # Belt and braces: also set a deployment-branch restriction on the `auth0`
-      # environment in repository settings, which enforces the same rule outside
-      # the workflow file.
+      # workflow_dispatch runs the workflow definition from the ref the caller
+      # selects, so anyone who can push a branch can edit or delete this step on
+      # that branch and dispatch an import from it, along with an unreviewed
+      # tenant.yaml. A check cannot defend against a caller who controls the file
+      # containing the check.
+      #
+      # The actual boundary is configured outside the repository, and is required
+      # setup rather than optional hardening (see auth0/README.md):
+      #   - a deployment branch restriction on the `auth0` environment, and
+      #   - the credentials stored as ENVIRONMENT secrets on `auth0`, not as
+      #     repository secrets — repository secrets are readable by any job in
+      #     the repo, which would make the environment's gates decorative.
+      # With both set, a branch-dispatched import receives no credentials at all.
+      #
+      # Exports are read-only and stay unrestricted.
       - name: Imports must run from the default branch
         if: inputs.action == 'import' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
