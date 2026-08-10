@@ -204,25 +204,27 @@ reason.
 
 ```bash
 npm install                          # once, at the repo root
+unset AUTH0_ALLOW_DELETE             # see below — do this before sourcing
 set -a && . auth0/.env.auth0 && set +a
 ```
 
-### Export — read the tenant into the repo
+> **`unset` it, don't set it to `false`.** Sourcing `.env.auth0` cannot clear a variable your
+> shell already exports, and the template deliberately leaves the assignment commented out.
+> An inherited `AUTH0_ALLOW_DELETE=false` therefore survives into the import, where the raw
+> truthy checks read the non-empty string `"false"` as **enabled**. `npm run auth0:import`
+> refuses to run in that state rather than letting it through.
+
+### Use the npm scripts, not `a0deploy` directly
 
 ```bash
-npx a0deploy export \
-  --config_file auth0/config.json \
-  --format yaml \
-  --output_folder auth0/tenant
+npm run auth0:export     # read the tenant into auth0/tenant/
+npm run auth0:import     # pre-flight checks, then write to the tenant
 ```
 
-### Import — write the repo config to the tenant
-
-```bash
-npx a0deploy import \
-  --config_file auth0/config.json \
-  --input_file auth0/tenant/tenant.yaml
-```
+`auth0:import` runs `auth0/preflight.mjs` first — the same script CI runs — so the local and
+CI paths get identical protection. Calling `npx a0deploy import` by hand skips it, which is
+how a lowercase, punctuation-bearing, or embedded marker reaches the tenant as literal text.
+Run `npm run auth0:preflight` on its own if you just want the checks.
 
 ### In CI
 
