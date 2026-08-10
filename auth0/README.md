@@ -44,11 +44,29 @@ sending before debugging anything else.
    - Application Type: **Machine to Machine Applications**.
 2. Authorize it against the **Auth0 Management API**.
 3. Grant scopes. The CLI operates within whatever it is given, so grant the minimum for what
-   you intend to do:
-   - Export only: `read:*`
-   - Export + import: `read:*`, `create:*`, `update:*`
-   - Deletion: `delete:*` — only if you also intend to set `AUTH0_ALLOW_DELETE=true`, which
-     you should not do by default. See the warning below.
+   you intend to do.
+
+   **Note that `read:*` is not a real permission.** The Auth0 Deploy CLI docs write scopes
+   that way as shorthand, but the dashboard's permission list is resource-specific — there is
+   no wildcard entry to tick. Searching the permissions list for `read:*` finds nothing.
+   Filter by the verb prefix and select every entry, or select the specific resources you
+   intend to manage:
+
+   | Intent | Grant |
+   |---|---|
+   | Export only | every `read:` permission |
+   | Export + import | every `read:`, `create:`, and `update:` permission |
+   | Deletion | additionally every `delete:` permission — only alongside `AUTH0_ALLOW_DELETE=true`, which should not be your default. See the warning below. |
+
+   Concretely, "every `read:` permission" means entries like `read:clients`,
+   `read:client_grants`, `read:connections`, `read:resource_servers`, `read:rules`,
+   `read:roles`, `read:organizations`, `read:tenant_settings`, `read:custom_domains`,
+   `read:email_templates`, `read:actions`, `read:log_streams`, `read:prompts`, and so on —
+   one per resource type the CLI handles.
+
+   The authoritative, version-specific list is in the Deploy CLI's own documentation; because
+   the required set changes as the tool adds resource types, prefer selecting the whole verb
+   prefix over hand-picking, and re-check it after a major CLI upgrade.
 
 The Deploy CLI's own application is deliberately not manageable by the CLI, so it cannot
 lock itself out.
@@ -91,6 +109,13 @@ The CI workflow fails fast with an explanatory message if you ask it to import b
 The CLI is pinned as a root devDependency, so use `npx` rather than a global install —
 everyone and CI then run the same version.
 
+**Node 20.19 or newer is required for this tooling specifically.** `auth0-deploy-cli@8.42.0`
+declares `engines.node >= 20.19.0`. `START_HERE.md` says the project needs Node 18+, which is
+true of the app but not of this CLI — npm will install it on Node 18 with nothing worse than
+an engine warning, and `a0deploy` then fails at runtime. Check with `node --version` before
+assuming a failure here is a credentials problem. The CI workflow pins `20.19` for the same
+reason.
+
 ```bash
 npm install                          # once, at the repo root
 set -a && . auth0/.env.auth0 && set +a
@@ -120,6 +145,19 @@ Actions → **Auth0 Tenant Config** → Run workflow, and pick `export` or `impo
 There is deliberately no `push:` trigger: this workflow can rewrite the tenant that governs
 login, so an accidental merge must never fire it. `export` runs in CI upload the result as an
 artifact rather than committing it — download it, review the diff, and commit it yourself.
+
+Three further constraints on CI runs:
+
+- **Imports only run from the default branch.** `workflow_dispatch` lets you choose any ref
+  and `actions/checkout` honours it, so without a guard you could import an unmerged
+  `tenant.yaml` straight to the live tenant and skip review entirely. The workflow refuses
+  that. Exports are read-only and may run from any branch. For defence in depth, also set a
+  **deployment branch restriction** on the `auth0` environment in repository settings, which
+  enforces the same rule outside the workflow file.
+- **Runs are serialized** through a `auth0-tenant` concurrency group with cancellation
+  disabled, so two imports cannot interleave and an export cannot capture a half-applied
+  import. Queued rather than cancelled, because a cancelled import is a partly-applied one.
+- **Required reviewers** on the `auth0` environment, if you configure them, gate every run.
 
 ---
 

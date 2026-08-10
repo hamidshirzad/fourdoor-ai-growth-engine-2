@@ -24,17 +24,43 @@ on:
         type: boolean
         default: false
 
+# The tenant is shared mutable state, so runs must not overlap. Two imports
+# interleaving would leave a configuration matching neither input file, and an
+# export racing an import would capture a half-applied transition. Queue instead
+# of cancelling: a cancelled import is a partly-applied import.
+concurrency:
+  group: auth0-tenant
+  cancel-in-progress: false
+
 jobs:
   a0deploy:
     runs-on: ubuntu-latest
     # Configure required reviewers on this environment to gate tenant writes.
     environment: auth0
     steps:
+      # workflow_dispatch lets the caller pick any ref, and actions/checkout
+      # honours it — so without this guard someone could import an unmerged
+      # tenant.yaml straight to the live tenant, skipping the review-and-commit
+      # step this design depends on. Exports are read-only and stay unrestricted.
+      #
+      # Belt and braces: also set a deployment-branch restriction on the `auth0`
+      # environment in repository settings, which enforces the same rule outside
+      # the workflow file.
+      - name: Imports must run from the default branch
+        if: inputs.action == 'import' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          echo "Refusing to import from '${{ github.ref_name }}'."
+          echo "Tenant config must be reviewed and merged into '${{ github.event.repository.default_branch }}' first, then imported from there."
+          exit 1
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # auth0-deploy-cli declares engines.node >= 20.19.0. Bare '20' resolves
+          # to the newest 20.x, which satisfies that today but only by accident
+          # of timing; pin the floor so a future resolution cannot drop below it.
+          node-version: '20.19'
           cache: npm
 
       - name: Install dependencies
