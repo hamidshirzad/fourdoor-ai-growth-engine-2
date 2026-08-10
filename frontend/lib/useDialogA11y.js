@@ -59,11 +59,18 @@ export default function useDialogA11y(isOpen, onClose) {
     previouslyFocused.current = document.activeElement;
 
     const node = containerRef.current;
-    if (node) {
-      // Prefer the first real control; fall back to the container itself, which
-      // needs tabIndex={-1} at the call site for this to take.
-      const first = node.querySelector(FOCUSABLE);
-      (first || node).focus?.();
+    if (node && !node.contains(document.activeElement)) {
+      // Only move focus if it is not already inside the dialog.
+      //
+      // React applies `autoFocus` before this effect runs, so unconditionally
+      // focusing the DOM-first control stole focus from the intended target —
+      // in DocumentationModal that meant Cmd+K put focus on the close button
+      // instead of the search input, and the dialog could not be typed into.
+      //
+      // An explicit [autofocus] target still wins over document order for the
+      // case where focus has not landed anywhere yet.
+      const preferred = node.querySelector('[autofocus]') || node.querySelector(FOCUSABLE);
+      (preferred || node).focus?.();
     }
 
     const onKeyDown = (event) => {

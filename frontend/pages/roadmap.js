@@ -96,7 +96,7 @@ export default function RoadmapPage() {
             value={newFeature}
             onChange={(e) => setNewFeature(e.target.value)}
             placeholder="Suggest a new feature or integration..."
-            className="flex-1 bg-transparent px-3 py-2 text-xs sm:text-sm text-neutral-100 placeholder-neutral-500 focus:outline-none"
+            className="flex-1 bg-transparent px-3 py-2 text-xs sm:text-sm text-neutral-100 placeholder-neutral-500"
           />
           <button
             type="submit"

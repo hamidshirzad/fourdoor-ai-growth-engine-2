@@ -76,7 +76,7 @@ export default function ContactPage() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Jane Doe"
-                    className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-orange-500"
+                    className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:border-orange-500"
                   />
                 </div>
                 <div>
@@ -87,7 +87,7 @@ export default function ContactPage() {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="jane@company.com"
-                    className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-orange-500"
+                    className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:border-orange-500"
                   />
                 </div>
               </div>
@@ -99,7 +99,7 @@ export default function ContactPage() {
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="Acme SaaS Inc."
-                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-orange-500"
+                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:border-orange-500"
                 />
               </div>
 
@@ -108,7 +108,7 @@ export default function ContactPage() {
                 <select
                   value={formData.inquiryType}
                   onChange={(e) => setFormData({ ...formData, inquiryType: e.target.value })}
-                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-orange-500"
+                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-200 focus:border-orange-500"
                 >
                   <option value="Demo Request">Request Personal Demo</option>
                   <option value="Enterprise Pricing">Enterprise Custom Plan</option>
@@ -125,7 +125,7 @@ export default function ContactPage() {
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                   placeholder="Tell us about your target ICP and current outbound goals..."
-                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:outline-none focus:border-orange-500"
+                  className="w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-3.5 py-2.5 text-xs text-neutral-100 focus:border-orange-500"
                 />
               </div>
 

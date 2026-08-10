@@ -62,7 +62,7 @@ export default function SignupPage() {
             type="button"
             onClick={handleDemoLogin}
             disabled={isLoading || isDemoLoading}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-4 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-all focus:outline-none"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-4 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-all"
           >
             <span>⚡</span>
             <span>{isDemoLoading ? 'Entering Demo Workspace...' : 'Skip Sign Up — Try Demo Workspace'}</span>
