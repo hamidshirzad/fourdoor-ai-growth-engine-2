@@ -8,7 +8,7 @@ Fourdoor AI Growth Engine is a production-oriented SaaS MVP for autonomous marke
 - Backend: Node.js, Express, PostgreSQL
 - AI: OpenAI Responses API with structured JSON outputs
 - Automation: internal cron scheduler for daily content, publishing, and optimization
-- Billing: PayPal Subscriptions REST API and verified webhooks
+- Billing: Stripe Checkout and Billing Portal, plus PayPal subscriptions, with verified webhooks
 - Deployment: Vercel frontend, Railway/Render backend, Supabase or managed PostgreSQL
 
 ## Quick Start
@@ -49,6 +49,8 @@ demo@password123
 - `POST /api/leads/engage`
 - `POST /api/leads/qualify`
 - `POST /api/billing/subscribe`
+- `POST /api/billing/portal`
+- `POST /api/billing/stripe/webhook`
 - `POST /api/billing/webhook`
 - `GET /api/analytics`
 
@@ -76,7 +78,8 @@ Brief-compatible aliases are also available:
 External actions are implemented against real provider APIs, but require credentials and provider-side setup:
 
 - OpenAI API key for live model output
-- PayPal product plan IDs and webhook ID
+- Stripe secret key, recurring Price IDs, webhook signing secret, and an enabled Billing Portal
+- PayPal product plan IDs and webhook ID when PayPal fallback is required
 - Calendly booking URL and optional API token
 - LinkedIn, X, and Instagram access tokens for distribution
 

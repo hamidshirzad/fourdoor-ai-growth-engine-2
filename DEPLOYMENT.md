@@ -51,6 +51,12 @@ DATABASE_URL=postgres://...
 DATABASE_SSL=true
 JWT_SECRET=<32+ random chars>
 CORS_ORIGIN=https://your-vercel-domain.com
+FRONTEND_URL=https://your-vercel-domain.com
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_STARTER_PRICE_ID=price_...
+STRIPE_PRO_PRICE_ID=price_...
+STRIPE_AGENCY_PRICE_ID=price_...
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4o-mini
 PAYPAL_MODE=live
@@ -169,6 +175,12 @@ application, and no publishable key is needed in the browser.
    subscribed to `checkout.session.completed`,
    `customer.subscription.created/updated/deleted` and
    `invoice.payment_failed`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`.
+4. Enable and configure the Stripe Customer Portal. The app creates portal
+   sessions for existing customers so they can update payment methods, download
+   invoices, change plans according to your portal policy, or cancel.
+5. Keep `FRONTEND_URL` and `CORS_ORIGIN` aligned with every frontend hostname
+   that may initiate checkout. Checkout and portal return URLs are rejected
+   unless their origin is on this server-side allowlist.
 
 **A subscription only becomes active through a signature-verified webhook.**
 Starting checkout does not change anyone's plan, and an unsigned or unverifiable
@@ -177,6 +189,24 @@ webhook is rejected with a 400. Events are recorded in
 `STRIPE_WEBHOOK_SECRET` is missing, no subscription can ever activate — that is
 deliberate, because the alternative is trusting unauthenticated input about who
 has paid.
+
+Before accepting live traffic, exercise the complete flow in Stripe test mode:
+
+```bash
+# In one terminal, forward signed test events to the deployed/local API.
+stripe listen --forward-to http://localhost:5000/api/billing/stripe/webhook
+
+# Put the printed whsec_... value in STRIPE_WEBHOOK_SECRET, restart the API,
+# then sign in and buy a plan from /billing with Stripe's test card:
+# 4242 4242 4242 4242, any future expiry, any CVC.
+```
+
+Confirm that Checkout returns to `/billing`, the profile changes to `active`,
+and **Manage billing** opens the Customer Portal. Repeat with a declined test
+card and cancel Checkout once; neither attempt may activate the subscription.
+This live-provider smoke test cannot be replaced by unit tests because it also
+proves the deployed Price IDs, webhook endpoint, signing secret, and Portal
+configuration belong to the same Stripe account and mode.
 
 ## Frontend hosting
 
