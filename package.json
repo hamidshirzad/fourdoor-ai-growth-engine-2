@@ -10,7 +10,14 @@
     "dev": "node server.js",
     "build": "cd frontend && npm run build && cd .. && node build.js",
     "lint": "cd frontend && npm run lint",
-    "start": "NODE_ENV=production node server.js"
+    "start": "NODE_ENV=production node server.js",
+    "auth0:preflight": "node auth0/preflight.mjs",
+    "auth0:export": "a0deploy export --config_file auth0/config.json --format yaml --output_folder auth0/tenant",
+    "auth0:import": "npm run auth0:preflight && a0deploy import --config_file auth0/config.json --input_file auth0/tenant/tenant.yaml"
+  },
+  "devDependencies": {
+    "auth0-deploy-cli": "^8.42.0",
+    "js-yaml": "^4.1.0"
   },
   "dependencies": {
     "@google/genai": "^2.13.0",
