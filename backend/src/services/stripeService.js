@@ -11,18 +11,18 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 let stripeClient = null;
+let database = pool;
 
 export function isStripeEnabled() {
   return Boolean(STRIPE_SECRET_KEY);
 }
 
 export function getStripeClient() {
+  if (stripeClient) return stripeClient;
   if (!STRIPE_SECRET_KEY) {
     throw new Error('Stripe is not configured. Set STRIPE_SECRET_KEY.');
   }
-  if (!stripeClient) {
-    stripeClient = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
-  }
+  stripeClient = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
   return stripeClient;
 }
 
@@ -71,7 +71,7 @@ export function getPlanFeatures(planName) {
 }
 
 async function getOrCreateCustomer(stripe, userId) {
-  const { rows } = await pool.query(
+  const { rows } = await database.query(
     'SELECT id, email, name, stripe_customer_id FROM users WHERE id = $1',
     [userId]
   );
@@ -86,7 +86,7 @@ async function getOrCreateCustomer(stripe, userId) {
     metadata: { userId: user.id }
   });
 
-  await pool.query(
+  await database.query(
     'UPDATE users SET stripe_customer_id = $1, updated_at = NOW() WHERE id = $2',
     [customer.id, userId]
   );
@@ -134,7 +134,7 @@ export async function createCheckoutSession(userId, planName, successUrl, cancel
  */
 export async function createBillingPortalSession(userId, returnUrl) {
   const stripe = getStripeClient();
-  const { rows } = await pool.query('SELECT stripe_customer_id FROM users WHERE id = $1', [userId]);
+  const { rows } = await database.query('SELECT stripe_customer_id FROM users WHERE id = $1', [userId]);
   const customerId = rows[0]?.stripe_customer_id;
   if (!customerId) throw new Error('No billing account exists for this user yet.');
 
@@ -178,14 +178,21 @@ function planFromPriceId(priceId) {
   return match?.key || null;
 }
 
-async function alreadyProcessed(eventId, eventType) {
-  const { rowCount } = await pool.query(
+async function alreadyProcessed(eventId) {
+  const { rowCount } = await database.query(
+    `SELECT 1 FROM processed_webhook_events WHERE id = $1 AND provider = 'stripe'`,
+    [eventId]
+  );
+  return rowCount > 0;
+}
+
+async function markProcessed(eventId, eventType) {
+  await database.query(
     `INSERT INTO processed_webhook_events (id, provider, event_type)
      VALUES ($1, 'stripe', $2)
      ON CONFLICT (id) DO NOTHING`,
     [eventId, eventType]
   );
-  return rowCount === 0;
 }
 
 async function applySubscription(subscription) {
@@ -200,13 +207,13 @@ async function applySubscription(subscription) {
 
   // Match on the ids Stripe owns, never on anything a client could forge.
   // The plan only moves when Stripe told us which price is being billed.
-  const { rowCount } = await pool.query(
+  const { rowCount } = await database.query(
     `UPDATE users
      SET subscription_status = $1,
          stripe_subscription_id = $2,
          plan = COALESCE($3, plan),
          updated_at = NOW()
-     WHERE ($4::uuid IS NOT NULL AND id = $4::uuid)
+     WHERE ($4::text IS NOT NULL AND id::text = $4::text)
         OR ($5::text IS NOT NULL AND stripe_customer_id = $5::text)`,
     [status, subscription.id, planName, userId, customerId || null]
   );
@@ -214,51 +221,73 @@ async function applySubscription(subscription) {
   if (rowCount === 0) {
     console.warn('[stripe] No user matched subscription', subscription.id);
   }
-  return { status, plan: planName, matched: rowCount };
+  return { subscriptionStatus: status, plan: planName, matched: rowCount };
 }
 
 export async function handleWebhook(event) {
-  if (await alreadyProcessed(event.id, event.type)) {
+  if (await alreadyProcessed(event.id)) {
     return { status: 'DUPLICATE_IGNORED' };
   }
 
   const object = event.data?.object || {};
+  let result;
 
   switch (event.type) {
     case 'checkout.session.completed': {
       // A completed session with an unpaid status is not a sale yet; the
       // subscription.* events below carry the authoritative state.
       if (object.payment_status !== 'paid' && object.status !== 'complete') {
-        return { status: 'IGNORED', reason: 'session not paid' };
+        result = { status: 'IGNORED', reason: 'session not paid' };
+        break;
       }
       if (object.subscription) {
         const stripe = getStripeClient();
         const subscription = await stripe.subscriptions.retrieve(
           typeof object.subscription === 'string' ? object.subscription : object.subscription.id
         );
-        return { status: 'OK', ...(await applySubscription(subscription)) };
+        result = { status: 'OK', ...(await applySubscription(subscription)) };
+        break;
       }
-      return { status: 'IGNORED', reason: 'no subscription on session' };
+      result = { status: 'IGNORED', reason: 'no subscription on session' };
+      break;
     }
 
     case 'customer.subscription.created':
     case 'customer.subscription.updated':
     case 'customer.subscription.deleted':
-      return { status: 'OK', ...(await applySubscription(object)) };
+      result = { status: 'OK', ...(await applySubscription(object)) };
+      break;
 
     case 'invoice.payment_failed': {
       const customerId = typeof object.customer === 'string' ? object.customer : object.customer?.id;
       if (customerId) {
-        await pool.query(
+        await database.query(
           `UPDATE users SET subscription_status = 'past_due', updated_at = NOW()
            WHERE stripe_customer_id = $1`,
           [customerId]
         );
       }
-      return { status: 'OK' };
+      result = { status: 'OK' };
+      break;
     }
 
     default:
-      return { status: 'IGNORED', reason: `unhandled event ${event.type}` };
+      result = { status: 'IGNORED', reason: `unhandled event ${event.type}` };
   }
+
+  // Record delivery only after every side effect succeeds. Stripe retries
+  // non-2xx webhooks; claiming the event first made a transient database/API
+  // failure permanently suppress the retry and leave billing state stale.
+  await markProcessed(event.id, event.type);
+  return result;
+}
+
+export function __setStripeDependenciesForTests({ stripe, db } = {}) {
+  stripeClient = stripe ?? null;
+  database = db ?? pool;
+}
+
+export function __resetStripeDependenciesForTests() {
+  stripeClient = null;
+  database = pool;
 }

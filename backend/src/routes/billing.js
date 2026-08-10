@@ -19,6 +19,24 @@ import { validate } from '../utils/validate.js';
 
 const router = express.Router();
 
+export function validateBillingReturnUrl(value, allowedOrigins = null) {
+  const url = new URL(value);
+  const configuredOrigins = allowedOrigins || [
+    process.env.FRONTEND_URL,
+    ...(process.env.CORS_ORIGIN || '').split(',')
+  ].filter(Boolean).map((origin) => new URL(origin.trim()).origin);
+
+  if (process.env.NODE_ENV !== 'production') {
+    configuredOrigins.push('http://localhost:3000');
+  }
+  if (!configuredOrigins.includes(url.origin)) {
+    const error = new Error('Billing return URL must use an approved frontend origin.');
+    error.status = 400;
+    throw error;
+  }
+  return url.toString();
+}
+
 const subscribeSchema = z.object({
   plan: z.enum(['starter', 'pro', 'agency']),
   returnUrl: z.string().url(),
@@ -37,9 +55,11 @@ const subscribeSchema = z.object({
 router.post('/subscribe', authenticateToken, validate(subscribeSchema), asyncHandler(async (req, res) => {
   const { plan, returnUrl, cancelUrl, provider } = req.body;
   const chosen = provider || (isStripeEnabled() ? 'stripe' : 'paypal');
+  const approvedReturnUrl = validateBillingReturnUrl(returnUrl);
+  const approvedCancelUrl = cancelUrl ? validateBillingReturnUrl(cancelUrl) : approvedReturnUrl;
 
   if (chosen === 'stripe') {
-    const session = await createCheckoutSession(req.userId, plan, returnUrl, cancelUrl);
+    const session = await createCheckoutSession(req.userId, plan, approvedReturnUrl, approvedCancelUrl);
     return res.status(201).json({
       success: true,
       provider: 'stripe',
@@ -47,14 +67,15 @@ router.post('/subscribe', authenticateToken, validate(subscribeSchema), asyncHan
     });
   }
 
-  const subscription = await createPaypalSubscription(req.userId, plan, returnUrl, cancelUrl);
+  const subscription = await createPaypalSubscription(req.userId, plan, approvedReturnUrl, approvedCancelUrl);
   res.status(201).json({ success: true, provider: 'paypal', subscription });
 }));
 
 router.post('/portal', authenticateToken, validate(z.object({
   returnUrl: z.string().url()
 })), asyncHandler(async (req, res) => {
-  res.json(await createBillingPortalSession(req.userId, req.body.returnUrl));
+  const returnUrl = validateBillingReturnUrl(req.body.returnUrl);
+  res.json(await createBillingPortalSession(req.userId, returnUrl));
 }));
 
 /**

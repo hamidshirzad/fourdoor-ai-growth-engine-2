@@ -9,8 +9,8 @@
     "dev": "nodemon src/index.js",
     "migrate": "node src/db/migrations.js",
     "seed": "node src/db/seed.js",
-    "check": "node --check src/index.js && node --check src/services/aiService.js && node --check src/services/billingService.js && node --check src/config/constants.js && node --check src/services/leadService.js && node --check src/services/scheduler.js && node --check src/services/dynamoService.js && node --check src/services/logService.js && node --check src/services/workosService.js && node --check src/routes/auth.js",
-    "test": "node --test \"src/**/*.test.js\""
+    "check": "node --check src/index.js && node --check src/services/aiService.js && node --check src/services/billingService.js && node --check src/services/stripeService.js && node --check src/config/constants.js && node --check src/services/leadService.js && node --check src/services/scheduler.js && node --check src/services/dynamoService.js && node --check src/services/logService.js && node --check src/services/workosService.js && node --check src/routes/auth.js && node --check src/routes/billing.js",
+    "test": "node --test src"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1079.0",
