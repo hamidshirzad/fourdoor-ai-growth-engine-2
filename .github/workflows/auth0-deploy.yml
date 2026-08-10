@@ -1,0 +1,85 @@
+name: Auth0 Tenant Config
+
+# Manual dispatch only, by design.
+#
+# There is deliberately no `push:` trigger. This workflow can rewrite the
+# configuration of the Auth0 tenant that governs login, so an accidental merge
+# must never be able to fire it. Every run is started by a human, and the
+# `environment:` below adds a second approval gate if you configure required
+# reviewers on it in the repository settings.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'export = read tenant into an artifact; import = write repo config to the tenant'
+        required: true
+        type: choice
+        options:
+          - export
+          - import
+        default: export
+      allow_delete:
+        description: 'DANGER: let an import DELETE tenant resources missing from the repo config'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  a0deploy:
+    runs-on: ubuntu-latest
+    # Configure required reviewers on this environment to gate tenant writes.
+    environment: auth0
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export tenant config
+        if: inputs.action == 'export'
+        env:
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+        run: |
+          npx a0deploy export \
+            --config_file auth0/config.json \
+            --format yaml \
+            --output_folder auth0/tenant
+
+      # CI does not commit. Download this artifact, review the diff, and commit
+      # it yourself — reviewing what changed in the tenant is the whole point.
+      - name: Upload exported config
+        if: inputs.action == 'export'
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth0-tenant-config
+          path: auth0/tenant
+
+      # An import with no committed config would be a no-op at best and a
+      # destructive wipe at worst, depending on allow_delete. Fail loudly first.
+      - name: Verify tenant config exists
+        if: inputs.action == 'import'
+        run: |
+          if [ ! -f auth0/tenant/tenant.yaml ]; then
+            echo "auth0/tenant/tenant.yaml not found."
+            echo "Run this workflow with action=export first, then review and commit the result."
+            exit 1
+          fi
+
+      - name: Import tenant config
+        if: inputs.action == 'import'
+        env:
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+          AUTH0_ALLOW_DELETE: ${{ inputs.allow_delete }}
+        run: |
+          npx a0deploy import \
+            --config_file auth0/config.json \
+            --input_file auth0/tenant/tenant.yaml
