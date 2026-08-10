@@ -54,7 +54,11 @@ jobs:
       #     the repo, which would make the environment's gates decorative.
       # With both set, a branch-dispatched import receives no credentials at all.
       #
-      # Exports are read-only and stay unrestricted.
+      # Note that `environment:` is evaluated per JOB, before any step-level `if`.
+      # Export and import share this job, so the environment's branch restriction
+      # applies to exports too — they are read-only, but they are NOT exempt from
+      # the default-branch rule. Splitting them into separate jobs with separate
+      # environments would allow that, at the cost of a second credential set.
       - name: Imports must run from the default branch
         if: inputs.action == 'import' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
@@ -107,12 +111,67 @@ jobs:
             exit 1
           fi
 
+      # Exporting with AUTH0_EXPORT_SECRETS off (the default, pinned in
+      # config.json) writes ##MARKER## placeholders in place of real secrets.
+      # Importing that file without a value for every marker sends the literal
+      # text "##SMTP_PASS##" to Auth0 and overwrites the real credential — a
+      # silent, destructive data change that no other guard here catches.
+      - name: Reject unresolved keyword markers
+        if: inputs.action == 'import'
+        env:
+          AUTH0_KEYWORD_REPLACE_MAPPINGS: ${{ secrets.AUTH0_KEYWORD_REPLACE_MAPPINGS }}
+        run: |
+          node -e '
+            const fs = require("fs"), path = require("path");
+            const walk = (d, out = []) => {
+              for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+                const f = path.join(d, e.name);
+                e.isDirectory() ? walk(f, out) : out.push(f);
+              }
+              return out;
+            };
+
+            const markers = new Set();
+            for (const file of walk("auth0/tenant")) {
+              const text = fs.readFileSync(file, "utf8");
+              for (const m of text.matchAll(/##([A-Za-z0-9_]+)##/g)) markers.add(m[1]);
+            }
+            if (markers.size === 0) process.exit(0);
+
+            const cfg = JSON.parse(fs.readFileSync("auth0/config.json", "utf8"));
+            let mappings = cfg.AUTH0_KEYWORD_REPLACE_MAPPINGS || {};
+            const raw = (process.env.AUTH0_KEYWORD_REPLACE_MAPPINGS || "").trim();
+            if (raw) {
+              try {
+                mappings = { ...mappings, ...JSON.parse(raw) };
+              } catch {
+                console.error("AUTH0_KEYWORD_REPLACE_MAPPINGS secret is not valid JSON.");
+                process.exit(1);
+              }
+            }
+
+            const missing = [...markers].filter((k) => !(k in mappings)).sort();
+            if (missing.length) {
+              console.error("Refusing to import: no value for " + missing.length + " keyword marker(s).");
+              console.error("Importing as-is would write the literal marker text over real tenant secrets.\n");
+              for (const k of missing) console.error("  ##" + k + "##");
+              console.error("\nSupply them via the AUTH0_KEYWORD_REPLACE_MAPPINGS environment secret");
+              console.error("on the auth0 environment, as a JSON object, e.g. {\"SMTP_PASS\":\"...\"}.");
+              process.exit(1);
+            }
+            console.log("All " + markers.size + " keyword marker(s) have replacements.");
+          '
+
       - name: Import tenant config
         if: inputs.action == 'import'
         env:
           AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
           AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
           AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+          # Values for the ##MARKER## placeholders the export writes in place of
+          # secrets. Checked by the step above; passed here so the CLI can
+          # substitute them.
+          AUTH0_KEYWORD_REPLACE_MAPPINGS: ${{ secrets.AUTH0_KEYWORD_REPLACE_MAPPINGS }}
           # Emit 'true' or the empty string — never the literal 'false'.
           #
           # Env values are always strings, and the CLI is inconsistent about how

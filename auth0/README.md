@@ -56,27 +56,37 @@ sending before debugging anything else.
    broadly privileged Management API credential. The client secret lives in CI, so its blast
    radius on exposure is exactly the scopes you grant it.
 
-   Grant only the resource types the Deploy CLI actually manages: **actions, branding, client
-   grants, clients (applications), connections, custom domains, email templates, emails,
-   grants, guardian, hook secrets, log streams, migrations, organizations, pages, prompts,
-   resource servers (APIs), roles, tenant settings, themes.**
+   **Narrow what the CLI manages first — then the scope list follows from it.** This is the
+   practical lever, because the CLI touches far more resource types than you probably want to
+   manage as code. Set `AUTH0_INCLUDED_ONLY` in `config.json` to the asset types you actually
+   care about, and grant scopes only for those. Every type you exclude is a set of permissions
+   you never have to grant.
 
    | Intent | Grant |
    |---|---|
-   | Export only | `read:` on the resource types above |
-   | Export + import | `read:`, `create:`, `update:` on those types |
+   | Export only | `read:` for each included resource type |
+   | Export + import | `read:`, `create:`, `update:` for each |
    | Deletion | additionally `delete:` — only alongside `AUTH0_ALLOW_DELETE=true`, which should not be your default. See the warning below. |
 
-   So for export that means `read:clients`, `read:client_grants`, `read:connections`,
-   `read:resource_servers`, `read:roles`, `read:organizations`, `read:tenant_settings`,
-   `read:custom_domains`, `read:email_templates`, `read:email_provider`, `read:actions`,
-   `read:log_streams`, `read:prompts`, `read:branding`, `read:guardian_factors`, and the
-   corresponding `create:`/`update:` entries for import — and *not* the user, device
-   credential, or log scopes.
+   Do **not** derive the list from memory or from a prose summary — both are how this
+   document previously got it wrong, omitting `read:rules` while the CLI's `rules` handler was
+   very much active. Enumerate the handlers in the version you have installed:
 
-   The required set shifts as the CLI adds resource types, so re-check it against the Deploy
-   CLI's version-specific permissions documentation after a major upgrade. If an export fails
-   with a 403 naming a resource type, grant that one rather than widening to a whole prefix.
+   ```bash
+   ls node_modules/auth0-deploy-cli/lib/tools/auth0/handlers/*.js \
+     | xargs -n1 basename | sed 's/\.js$//' | grep -v '^default$'
+   ```
+
+   At `auth0-deploy-cli@8.42.0` that is 47 handlers, including several a summary list tends to
+   miss: `rules`, `rulesConfigs`, `hooks`, `flows`, `forms`, `networkACLs`, `attackProtection`,
+   `triggers`, `eventStreams`, `scimHandler`, `selfServiceProfiles`, `tokenExchangeProfiles`,
+   and `userAttributeProfiles`. Cross-check against the Deploy CLI's version-specific
+   permissions documentation, and re-check after any upgrade.
+
+   Whatever you include, leave out the scopes for things the CLI does not manage as config —
+   above all **user data** (`read:users`, `update:users`, `read:user_idp_tokens`) and device
+   credentials. If an export 403s naming a resource type, grant that single scope or exclude
+   that type; do not widen to a whole verb prefix.
 
 The Deploy CLI's own application is deliberately not manageable by the CLI, so it cannot
 lock itself out.
@@ -226,6 +236,14 @@ above are not optional:
 
 With both in place, a branch-dispatched import gets no credentials and fails regardless of
 what the workflow file on that branch says.
+
+**Consequence worth knowing: this restricts exports too.** `environment:` is evaluated per
+*job*, before any step-level `if`, and export and import share one job. So once the branch
+restriction is in place, an export dispatched from a feature branch is blocked as well, even
+though it only reads. That is a deliberate trade — one credential set and one gate, rather
+than two. If you need branch-flexible exports, split export and import into separate jobs
+with separate environments and a read-only M2M application for the export side; run
+`a0deploy export` locally in the meantime, which has no such restriction.
 
 ---
 
