@@ -12,6 +12,10 @@ const aikidoClient = process.env.AIKIDO_API_KEY
     })
   : null;
 
+export function isSecurityScanningEnabled() {
+  return Boolean(aikidoClient);
+}
+
 export async function scanContent(userId, content, scanType = 'content', postId = null, campaignId = null) {
   if (!aikidoClient) {
     return {

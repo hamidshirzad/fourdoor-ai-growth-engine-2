@@ -184,6 +184,8 @@ const migrations = [
   'CREATE INDEX IF NOT EXISTS idx_messages_lead_created ON messages(lead_id, created_at DESC);',
   'CREATE INDEX IF NOT EXISTS idx_agent_logs_user_created ON agent_logs(user_id, created_at DESC);',
   'CREATE INDEX IF NOT EXISTS idx_security_scans_user_created ON security_scans(user_id, created_at DESC);',
+  // Backs the SECURITY_SCAN_CRON anti-join that finds posts with no scan yet.
+  'CREATE INDEX IF NOT EXISTS idx_security_scans_post ON security_scans(post_id);',
   // WorkOS AuthKit SSO: SSO-only users have no local password.
   'ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;',
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS workos_id VARCHAR(255) UNIQUE;',
