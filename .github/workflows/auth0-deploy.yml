@@ -111,11 +111,23 @@ jobs:
             exit 1
           fi
 
-      # Exporting with AUTH0_EXPORT_SECRETS off (the default, pinned in
-      # config.json) writes ##MARKER## placeholders in place of real secrets.
-      # Importing that file without a value for every marker sends the literal
-      # text "##SMTP_PASS##" to Auth0 and overwrites the real credential — a
-      # silent, destructive data change that no other guard here catches.
+      # Catch keyword markers the CLI will NOT protect you from.
+      #
+      # a0deploy 8.42.0 already handles the common case: stripUnresolvedPlaceholders
+      # (tools/utils.js, called from handlers/default.js) drops any field whose
+      # ENTIRE value matches /^(##[A-Z0-9_]+##|@@[A-Z0-9_]+@@)$/, logs a warning,
+      # and leaves the existing tenant value alone. So a bare ##SMTP_PASS## is safe.
+      #
+      # That regex is uppercase-only and anchored, which leaves three shapes
+      # unprotected — they are not stripped, so they reach Auth0 as literal text
+      # and overwrite whatever is there:
+      #
+      #   ##tenant.url##              punctuation in the key
+      #   ##smtp_pass##               lowercase key
+      #   smtp.example.com:##PORT##   marker embedded in a longer string
+      #
+      # This step exists for those. It deliberately matches a broader shape than
+      # the CLI strips, and both delimiter forms.
       - name: Reject unresolved keyword markers
         if: inputs.action == 'import'
         env:
@@ -131,32 +143,43 @@ jobs:
               return out;
             };
 
-            const markers = new Set();
+            const markers = new Map();
             for (const file of walk("auth0/tenant")) {
               const text = fs.readFileSync(file, "utf8");
-              for (const m of text.matchAll(/##([A-Za-z0-9_]+)##/g)) markers.add(m[1]);
+              for (const [re, open, close] of [[/##([^#\r\n]+?)##/g, "##", "##"], [/@@([^@\r\n]+?)@@/g, "@@", "@@"]]) {
+                for (const m of text.matchAll(re)) markers.set(open + m[1] + close, m[1]);
+              }
             }
-            if (markers.size === 0) process.exit(0);
+            if (markers.size === 0) {
+              console.log("No keyword markers found.");
+              process.exit(0);
+            }
 
-            const cfg = JSON.parse(fs.readFileSync("auth0/config.json", "utf8"));
-            let mappings = cfg.AUTH0_KEYWORD_REPLACE_MAPPINGS || {};
+            // Validate against exactly what the CLI resolves against: the
+            // AUTH0_KEYWORD_REPLACE_MAPPINGS value, plus process.env, which
+            // commands/import.js merges in. config.json is deliberately NOT
+            // consulted here — the env value replaces the file setting rather
+            // than merging with it, so counting file keys would let markers the
+            // CLI cannot resolve slip past. Keep mappings in the secret only.
+            const mappings = {};
             const raw = (process.env.AUTH0_KEYWORD_REPLACE_MAPPINGS || "").trim();
             if (raw) {
               try {
-                mappings = { ...mappings, ...JSON.parse(raw) };
+                Object.assign(mappings, JSON.parse(raw));
               } catch {
                 console.error("AUTH0_KEYWORD_REPLACE_MAPPINGS secret is not valid JSON.");
                 process.exit(1);
               }
             }
+            Object.assign(mappings, process.env);
 
-            const missing = [...markers].filter((k) => !(k in mappings)).sort();
+            const missing = [...markers].filter(([, key]) => !(key in mappings)).map(([marker]) => marker).sort();
             if (missing.length) {
-              console.error("Refusing to import: no value for " + missing.length + " keyword marker(s).");
-              console.error("Importing as-is would write the literal marker text over real tenant secrets.\n");
-              for (const k of missing) console.error("  ##" + k + "##");
-              console.error("\nSupply them via the AUTH0_KEYWORD_REPLACE_MAPPINGS environment secret");
-              console.error("on the auth0 environment, as a JSON object, e.g. {\"SMTP_PASS\":\"...\"}.");
+              console.error("Refusing to import: no value for " + missing.length + " keyword marker(s).\n");
+              for (const m of missing) console.error("  " + m);
+              console.error("\nMarkers the CLI cannot strip are sent to Auth0 as literal text and");
+              console.error("overwrite the real value. Supply them as a JSON object in the");
+              console.error("AUTH0_KEYWORD_REPLACE_MAPPINGS environment secret on the auth0 environment.");
               process.exit(1);
             }
             console.log("All " + markers.size + " keyword marker(s) have replacements.");

@@ -157,10 +157,36 @@ That default is what keeps credentials out of the repository, so:
 - **The masking list is a fixed set, not a guarantee.** A resource type the list does not
   cover can still carry something sensitive. Skim the export for anything credential-shaped
   before the first commit, and treat that as part of the review in step 3.
-- **The placeholders are why `AUTH0_KEYWORD_REPLACE_MAPPINGS` starts empty.** Once an export
-  contains `##SMTP_PASS##` or similar, an import needs a value for each marker — supply them
-  through the mappings or the environment. An import against unfilled placeholders writes the
-  literal marker text into your tenant.
+### Keyword markers on import — what protects you, and what does not
+
+Once an export contains `##SMTP_PASS##` and friends, an import needs a value for each marker.
+The protection here is partial, and the boundary is worth knowing precisely.
+
+**The CLI protects the common case.** `stripUnresolvedPlaceholders` (in `tools/utils.js`,
+called from `handlers/default.js`) drops any field whose **entire** value matches
+`/^(##[A-Z0-9_]+##|@@[A-Z0-9_]+@@)$/`, logs a warning, and leaves the existing tenant value
+untouched. A bare `##SMTP_PASS##` is therefore safe — it is skipped, not written.
+
+**Three shapes fall outside that regex,** because it is uppercase-only and anchored to the
+whole value. These are *not* stripped, so they reach Auth0 as literal text and overwrite
+whatever was there:
+
+| Shape | Example |
+|---|---|
+| Punctuation in the key | `##tenant.url##` |
+| Lowercase key | `##smtp_pass##` |
+| Marker inside a longer string | `smtp.example.com:##PORT##` |
+
+The workflow's **Reject unresolved keyword markers** step exists for exactly these. It matches
+a deliberately broader shape than the CLI strips — both `##…##` and `@@…@@`, any key
+characters — and fails the import listing every marker without a replacement.
+
+**Keep mappings in the environment secret, not in `config.json`.** Supply them as a JSON
+object in `AUTH0_KEYWORD_REPLACE_MAPPINGS` on the `auth0` environment. The environment value
+replaces the file setting rather than merging with it, so mappings split across both sources
+are a trap: the file's keys would look present locally while the CLI never sees them.
+`config.json` ships with the mappings empty for that reason. Individual environment variables
+also satisfy markers, since `commands/import.js` merges `process.env` into the mapping set.
 
 ---
 
