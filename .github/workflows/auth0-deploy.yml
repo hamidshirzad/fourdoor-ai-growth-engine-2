@@ -78,7 +78,21 @@ jobs:
           AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
           AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
           AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
-          AUTH0_ALLOW_DELETE: ${{ inputs.allow_delete }}
+          # Emit 'true' or the empty string — never the literal 'false'.
+          #
+          # Env values are always strings, and the CLI is inconsistent about how
+          # it reads this one. Some handlers compare strictly
+          # (`=== 'true' || === true`, e.g. handlers/default.js:295), but others
+          # take the raw value as a boolean: `!!config('AUTH0_ALLOW_DELETE')` in
+          # handlers/default.js:224 and handlers/rules.js:106, and the bail-out
+          # guards `if (!config('AUTH0_ALLOW_DELETE'))` in handlers/themes.js:564
+          # and handlers/phoneProvider.js:183.
+          #
+          # `!!'false'` is true, so passing ${{ inputs.allow_delete }} directly
+          # would ENABLE deletes in those handlers with the checkbox unchecked —
+          # the precise opposite of what the input says. The empty string is
+          # falsy under both styles, so unchecked stays genuinely off.
+          AUTH0_ALLOW_DELETE: ${{ inputs.allow_delete && 'true' || '' }}
         run: |
           npx a0deploy import \
             --config_file auth0/config.json \

@@ -133,6 +133,26 @@ config**. On a tenant that has drifted — or against a partial export — that 
 applications, connections, or rules. Turn it on only when you specifically intend a
 destructive sync, and prefer proving the change on a development tenant first.
 
+### Never set it to the string `false`
+
+Counter-intuitive and worth stating explicitly: **`AUTH0_ALLOW_DELETE=false` in the
+environment turns deletion ON** in some handlers.
+
+Environment values are always strings, and the CLI reads this setting two different ways.
+Some handlers compare strictly (`=== 'true' || === true`, e.g.
+`handlers/default.js:295`), but others coerce the raw value:
+
+- `!!config('AUTH0_ALLOW_DELETE')` — `handlers/default.js:224`, `handlers/rules.js:106`
+- `if (!config('AUTH0_ALLOW_DELETE'))` — `handlers/themes.js:564`,
+  `handlers/phoneProvider.js:183`
+
+`!!'false'` is `true`, so those paths see the string `"false"` as permission to delete.
+
+Leave the variable **unset** to stay safe. Unset, the CLI falls back to
+`"AUTH0_ALLOW_DELETE": false` in `config.json`, which is a genuine boolean. Set it to
+exactly `true` only when you mean it. The CI workflow already handles this: it emits
+`'true'` or the empty string, never `'false'`.
+
 ---
 
 ## Files
