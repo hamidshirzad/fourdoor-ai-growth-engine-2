@@ -3,8 +3,9 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { authenticateToken, JWT_SECRET } from '../middleware/auth.js';
-import { signup, login, createPasswordReset, resetPassword, updateOnboarding, loginWithWorkosCode } from '../services/authService.js';
+import { signup, login, createPasswordReset, resetPassword, updateOnboarding, loginWithWorkosCode, findOrCreateAuth0User } from '../services/authService.js';
 import { getWorkosClient, isSsoEnabled, WORKOS_CLIENT_ID } from '../services/workosService.js';
+import { AUTH0_CLIENT_ID, authenticateWithAuth0Code, getAuth0AuthorizationUrl, isAuth0Enabled } from '../services/auth0Service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validate } from '../utils/validate.js';
 
@@ -17,6 +18,10 @@ function frontendUrl() {
 
 function ssoRedirectUri() {
   return process.env.WORKOS_REDIRECT_URI || 'http://localhost:5000/api/auth/sso/callback';
+}
+
+function auth0RedirectUri() {
+  return process.env.AUTH0_REDIRECT_URI || 'http://localhost:5000/api/auth/auth0/callback';
 }
 
 function readCookie(req, name) {
@@ -102,6 +107,41 @@ router.get('/sso/callback', async (req, res) => {
   } catch (err) {
     console.error('SSO callback failed:', err.message);
     res.redirect(`${front}/login?error=sso_failed`);
+  }
+});
+
+router.get('/auth0/authorize', (req, res) => {
+  if (!isAuth0Enabled()) return res.status(503).json({ error: 'Auth0 is not configured.' });
+  const nonce = crypto.randomUUID();
+  const verifier = crypto.randomBytes(48).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  const state = jwt.sign({ purpose: 'auth0', nonce, clientId: AUTH0_CLIENT_ID }, JWT_SECRET, { expiresIn: '5m' });
+  const options = { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 5 * 60 * 1000 };
+  res.cookie('auth0_nonce', nonce, options);
+  res.cookie('auth0_pkce', verifier, options);
+  res.redirect(getAuth0AuthorizationUrl({ redirectUri: auth0RedirectUri(), state, codeChallenge: challenge }));
+});
+
+router.get('/auth0/callback', async (req, res) => {
+  const front = frontendUrl();
+  try {
+    const parsed = ssoCallbackSchema.safeParse(req.query);
+    if (!parsed.success) throw new Error('Invalid code or state parameter');
+    const payload = jwt.verify(parsed.data.state, JWT_SECRET);
+    const cookieNonce = readCookie(req, 'auth0_nonce');
+    const codeVerifier = readCookie(req, 'auth0_pkce');
+    if (payload.purpose !== 'auth0' || payload.clientId !== AUTH0_CLIENT_ID || !cookieNonce || payload.nonce !== cookieNonce) {
+      throw new Error('State nonce does not match the initiating browser');
+    }
+    if (!codeVerifier) throw new Error('PKCE verifier is missing');
+    res.clearCookie('auth0_nonce');
+    res.clearCookie('auth0_pkce');
+    const profile = await authenticateWithAuth0Code({ code: parsed.data.code, redirectUri: auth0RedirectUri(), codeVerifier });
+    const { token } = await findOrCreateAuth0User(profile);
+    res.redirect(`${front}/sso-callback#token=${encodeURIComponent(token)}`);
+  } catch (err) {
+    console.error('Auth0 callback failed:', err.message);
+    res.redirect(`${front}/login?error=auth0_failed`);
   }
 });
 

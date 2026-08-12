@@ -18,6 +18,7 @@ export default function LoginPage() {
     if (router.query.error === 'sso_failed') {
       setError('Single sign-on failed. Please try again or log in with your password.');
     }
+    if (router.query.error === 'auth0_failed') setError('Auth0 sign-in failed. Please try again or log in with your password.');
   }, [router.query.error]);
 
   const handleSubmit = async (event) => {
@@ -47,6 +48,14 @@ export default function LoginPage() {
     window.location.href = `${API_BASE_URL}/api/auth/sso/authorize`;
   };
 
+  const handleAuth0 = () => {
+    if (!isApiConfigured) {
+      setError('Auth0 is unavailable: this deployment has no API server configured.');
+      return;
+    }
+    window.location.href = `${API_BASE_URL}/api/auth/auth0/authorize`;
+  };
+
   return (
     <>
       <Seo title="Log in" description="Sign in to your Fourdoor AI Growth operations workspace." />
@@ -73,6 +82,15 @@ export default function LoginPage() {
               backend URL and redeploy.
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={handleAuth0}
+            disabled={!isApiConfigured}
+            className="mt-3 w-full rounded-lg border border-white/10 bg-[#0A0A0B] px-4 py-2.5 text-sm font-semibold text-neutral-300 hover:bg-white/5 transition-colors disabled:opacity-50"
+          >
+            Continue with Auth0
+          </button>
 
           <button
             type="button"
