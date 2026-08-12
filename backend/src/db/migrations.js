@@ -189,6 +189,7 @@ const migrations = [
   // WorkOS AuthKit SSO: SSO-only users have no local password.
   'ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;',
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS workos_id VARCHAR(255) UNIQUE;',
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS auth0_id VARCHAR(255) UNIQUE;',
   // Stripe subscriptions. The customer id is reused across checkouts so a
   // returning user keeps one customer record instead of accumulating duplicates.
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);',

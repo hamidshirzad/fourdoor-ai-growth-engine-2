@@ -17,6 +17,10 @@ export function deriveNameFromWorkosUser(workosUser) {
   return (workosUser.email || '').split('@')[0] || 'New User';
 }
 
+export function deriveNameFromAuth0User(auth0User) {
+  return auth0User.name || auth0User.nickname || (auth0User.email || '').split('@')[0] || 'New User';
+}
+
 export async function signup({ name, email, password, company }) {
   const passwordHash = await bcrypt.hash(password, 12);
   const result = await pool.query(
@@ -90,6 +94,22 @@ export async function findOrCreateWorkosUser(workosUser) {
 
   const user = sanitizeUser(row);
   await logAgent(user.id, 'auth', 'sso_login', 'success', { workosId: workosUser.id }, { email: user.email });
+  return { user, token: signToken(user) };
+}
+
+export async function findOrCreateAuth0User(auth0User) {
+  const email = typeof auth0User.email === 'string' ? auth0User.email.trim() : '';
+  if (!auth0User.sub) throw new Error('Auth0 user is missing a subject identifier');
+  if (!email) throw new Error('Auth0 user is missing an email address');
+  if (auth0User.email_verified !== true) throw new Error('Auth0 email address is not verified');
+  const upserted = await pool.query(
+    `INSERT INTO users (name, email, auth0_id) VALUES ($1, LOWER($2), $3)
+     ON CONFLICT (email) DO UPDATE SET auth0_id = EXCLUDED.auth0_id, updated_at = NOW()
+     RETURNING *`,
+    [deriveNameFromAuth0User(auth0User), email, auth0User.sub]
+  );
+  const user = sanitizeUser(upserted.rows[0]);
+  await logAgent(user.id, 'auth', 'auth0_login', 'success', { auth0Id: auth0User.sub }, { email: user.email });
   return { user, token: signToken(user) };
 }
 

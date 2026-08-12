@@ -343,6 +343,32 @@ pages-router and the API is a separate Express service. Env vars are listed in
    `agent.<action>` names with `user`/`system` actor types and an `agent` target type
    (see `buildAuditLogEvent` in `workosService.js`).
 
+## Auth0 Login Setup
+
+Auth0 is an additional login option; password, demo, and WorkOS login continue to work. After
+Auth0 authenticates the user, the Express backend links the verified email to a local user and
+issues the same application JWT used by every existing API route.
+
+1. In Auth0, create a **Regular Web Application**. This is separate from the Machine-to-Machine
+   application used by the tenant deployment tooling in `auth0/`.
+2. Add `http://localhost:5000/api/auth/auth0/callback` as an Allowed Callback URL. For
+   production, also add `<backend-url>/api/auth/auth0/callback`.
+3. Set these backend secrets (none are `NEXT_PUBLIC_*` values):
+
+   ```bash
+   AUTH0_DOMAIN=<tenant>.auth0.com
+   AUTH0_CLIENT_ID=<regular-web-app-client-id>
+   AUTH0_CLIENT_SECRET=<regular-web-app-client-secret>
+   AUTH0_REDIRECT_URI=https://<backend-host>/api/auth/auth0/callback
+   ```
+
+4. Ensure the connection supplies an email and that Auth0 reports `email_verified: true`.
+   Unverified or email-less identities are rejected rather than linked to an existing account.
+
+The authorization request uses a five-minute signed state cookie and PKCE. The callback exchanges
+the code server-side, reads `/userinfo`, stores only the stable Auth0 subject on the user record,
+and returns the local JWT in the URL fragment so it is not sent in HTTP request logs.
+
 ## PayPal Setup
 
 1. In the PayPal developer dashboard, create one product for Fourdoor AI.
