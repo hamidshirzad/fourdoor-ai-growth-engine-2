@@ -1,19 +1,26 @@
 import express from 'express';
 import { z } from 'zod';
 import { verifyControlPlaneRequest } from '../middleware/internalControlPlaneAuth.js';
-import { syncControlPlaneCampaign } from '../services/controlPlaneBridgeService.js';
+import {
+  syncControlPlaneCampaign,
+  syncControlPlaneEntitlement
+} from '../services/controlPlaneBridgeService.js';
 
 const router = express.Router();
 
-const schema = z.object({
-  identity: z.object({
-    provider: z.literal('firebase').default('firebase'),
-    subject: z.string().min(1).max(255),
-    email: z.string().email().max(255),
-    emailVerified: z.literal(true),
-    name: z.string().max(255).optional(),
-    company: z.string().max(255).optional(),
-    plan: z.enum(['starter', 'pro', 'agency']),
+const identitySchema = z.object({
+  provider: z.literal('firebase').default('firebase'),
+  subject: z.string().min(1).max(255),
+  email: z.string().email().max(255),
+  emailVerified: z.literal(true),
+  name: z.string().max(255).optional(),
+  company: z.string().max(255).optional(),
+  plan: z.enum(['starter', 'pro', 'agency']),
+  subscriptionStatus: z.string().min(1).max(50)
+});
+
+const campaignSchema = z.object({
+  identity: identitySchema.extend({
     subscriptionStatus: z.enum(['active', 'trialing'])
   }),
   campaign: z.object({
@@ -30,9 +37,24 @@ const schema = z.object({
   })
 });
 
+const entitlementSchema = z.object({ identity: identitySchema });
+
+router.post('/entitlements/sync', verifyControlPlaneRequest, async (req, res, next) => {
+  try {
+    const parsed = entitlementSchema.safeParse(req.internalBody);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid entitlement payload', issues: parsed.error.issues });
+    }
+    const result = await syncControlPlaneEntitlement(parsed.data);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/campaigns/sync', verifyControlPlaneRequest, async (req, res, next) => {
   try {
-    const parsed = schema.safeParse(req.internalBody);
+    const parsed = campaignSchema.safeParse(req.internalBody);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid control-plane payload', issues: parsed.error.issues });
     }
