@@ -133,7 +133,17 @@ export default function SystemActivityLogs() {
       // worked while activity_logs accepted unauthenticated writes — i.e. while
       // anyone on the internet could forge entries in it. Driving a real agent
       // run produces a genuine log through the backend instead.
-      await apiCall('/api/content/generate', 'POST', { niche: 'SaaS Demo', goal: 'Test Trigger' }, token);
+      //
+      // All three fields are required: generateSchema on /api/content/generate
+      // declares niche, audience and goal as `z.string().min(2)`. Omitting
+      // audience made every click a 400, so the button could never produce the
+      // log it promises.
+      await apiCall(
+        '/api/content/generate',
+        'POST',
+        { niche: 'SaaS Demo', audience: 'B2B SaaS founders', goal: 'Test Trigger' },
+        token
+      );
 
       toast.success(
         'Automated Action Logged',
@@ -357,15 +367,23 @@ export default function SystemActivityLogs() {
             {filteredLogs.map((log) => {
               const isExpanded = expandedLogId === log.id;
               const isSuccess = log.status === 'completed' || log.status === 'success';
-              const createdDate = log.createdAt ? new Date(log.createdAt) : new Date();
+              // A missing timestamp reads as missing. This used to fall back to
+              // `new Date()`, so an entry with no createdAt claimed to have
+              // happened at the moment of render — and its time moved on every
+              // 15s poll. The endpoint now normalises Postgres `created_at` to
+              // `createdAt`, so this branch should be unreachable in practice.
+              const createdDate = log.createdAt ? new Date(log.createdAt) : null;
+              const hasValidTime = createdDate && !Number.isNaN(createdDate.getTime());
 
-              const formattedTime = createdDate.toLocaleString([], {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-              });
+              const formattedTime = hasValidTime
+                ? createdDate.toLocaleString([], {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  })
+                : 'time unknown';
 
               let outputStr = '';
               try {

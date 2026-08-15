@@ -3,6 +3,23 @@ import { Play, Pause, Loader2 } from 'lucide-react';
 
 const CHANNEL_OPTIONS = ['linkedin', 'x', 'instagram', 'email'];
 const CADENCE_OPTIONS = ['hourly', 'daily', 'weekly'];
+const DEFAULT_CADENCE = 'daily';
+
+/**
+ * The cadence to show for a stored value.
+ *
+ * `campaigns.cadence` is a free-form VARCHAR predating this feature, so a row
+ * can hold something this select has no option for. Initialising the controlled
+ * value from it directly rendered a select with nothing selected, and pressing
+ * Start submitted the stored string unchanged — which the route's
+ * `z.enum(['hourly','daily','weekly'])` rejects with a 400 the user has no way
+ * to interpret. Fall back to the same daily default the backend's nextRunFor()
+ * uses for values it does not recognise.
+ */
+export function displayCadence(stored) {
+  const normalized = String(stored || '').toLowerCase();
+  return CADENCE_OPTIONS.includes(normalized) ? normalized : DEFAULT_CADENCE;
+}
 
 /**
  * Configure the automation loop for one campaign.
@@ -25,7 +42,7 @@ export default function CampaignMissionPanel({ campaign, onSubmit, isBusy = fals
     objective: campaign.goal || '',
     targetAudience: campaign.audience || '',
     budgetRange: campaign.budget_range || '',
-    cadence: campaign.cadence || 'daily',
+    cadence: displayCadence(campaign.cadence),
     channels: Array.isArray(campaign.channels) ? campaign.channels : []
   });
 

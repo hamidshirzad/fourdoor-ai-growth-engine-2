@@ -258,7 +258,32 @@ const migrations = [
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `,
-  'CREATE INDEX IF NOT EXISTS idx_outreach_templates_user_created ON outreach_templates(user_id, created_at DESC);'
+  'CREATE INDEX IF NOT EXISTS idx_outreach_templates_user_created ON outreach_templates(user_id, created_at DESC);',
+
+  // Backfill next_run_at for campaigns the scheduler is already processing.
+  //
+  // `status` alone used to mean "automation running", but campaigns.status
+  // DEFAULTs to 'active', so every campaign ever created reads as running. The
+  // mission panel therefore tests `status = 'active' AND next_run_at IS NOT
+  // NULL`, and the CONTENT_CRON query now does the same — otherwise a campaign
+  // that was never activated shows "Paused" with no Pause button while the
+  // scheduler keeps generating content for it, with no way to stop it.
+  //
+  // Adding the gate without this backfill would silently stop content
+  // generation for every campaign predating the feature. This only ever *adds*
+  // a next_run_at to rows the scheduler already selects, so no campaign starts
+  // or stops generating as a result. Cadences match CADENCE_HOURS in
+  // automationService.js; anything unrecognised takes the same daily fallback
+  // as nextRunFor().
+  `
+    UPDATE campaigns
+    SET next_run_at = NOW() + CASE LOWER(COALESCE(cadence, ''))
+                                WHEN 'hourly' THEN INTERVAL '1 hour'
+                                WHEN 'weekly' THEN INTERVAL '7 days'
+                                ELSE INTERVAL '1 day'
+                              END
+    WHERE status = 'active' AND next_run_at IS NULL;
+  `
 ];
 
 export async function runMigrations() {
