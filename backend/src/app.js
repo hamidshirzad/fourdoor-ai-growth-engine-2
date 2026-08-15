@@ -12,6 +12,7 @@ import distributionRoutes from './routes/distribution.js';
 import activityRoutes from './routes/activity.js';
 import uploadRoutes from './routes/upload.js';
 import securityRoutes from './routes/security.js';
+import campaignsRoutes from './routes/campaigns.js';
 import liveAgentRoutes from './routes/liveAgent.js';
 import { authenticateToken } from './middleware/auth.js';
 import { checkDatabaseHealth } from './db/pool.js';
@@ -93,6 +94,7 @@ app.use('/api/distribution', distributionRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/campaigns', campaignsRoutes);
 app.use('/api/live-agent', liveAgentRoutes);
 
 // Brief-compatible aliases

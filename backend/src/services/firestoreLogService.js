@@ -63,3 +63,36 @@ export async function getFirestoreAgentLogs(userId, limitNum = 100) {
     return [];
   }
 }
+
+/**
+ * Mirror an automation job into Firestore so the UI can stream live status.
+ *
+ * Postgres remains the store of record — this is best-effort, exactly like
+ * putFirestoreAgentLog above. Returning null when Firestore is unconfigured is
+ * what lets the automation loop keep working without it, so callers must not
+ * treat a null here as failure.
+ *
+ * The document id is the Postgres row id, so repeated mirrors of the same job
+ * (pending -> running -> completed) overwrite one document rather than
+ * accumulating a row per transition.
+ */
+export async function mirrorAutomationJob(job) {
+  if (!db || !job?.id) return null;
+  try {
+    const data = {
+      userId: job.user_id,
+      campaignId: job.campaign_id,
+      type: job.type,
+      status: job.status,
+      scheduledFor: job.scheduled_for ? new Date(job.scheduled_for).toISOString() : null,
+      resultSummary: job.result_summary || null,
+      createdAt: job.created_at ? new Date(job.created_at).toISOString() : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await setDoc(doc(db, 'automationJobs', job.id), data);
+    return data;
+  } catch (err) {
+    console.error('Firestore automation job mirror error:', err.message);
+    return null;
+  }
+}
