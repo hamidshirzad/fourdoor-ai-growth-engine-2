@@ -38,22 +38,36 @@ service cloud.firestore {
         data.status is string && data.status.size() <= 64;
     }
 
-    // Automation jobs are deliberately NOT granted a client rule, so the
-    // default-deny at the top of this file applies to them.
+    function isValidAutomationJob(data) {
+      return data.keys().hasAll(['userId', 'campaignId', 'type', 'status']) &&
+        data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+        data.campaignId is string && data.campaignId.size() > 0 && data.campaignId.size() <= 128 &&
+        data.type is string && data.type.size() <= 64 &&
+        data.status is string && data.status.size() <= 32;
+    }
+
+    // Mirror of the Postgres `automation_jobs` table. Postgres is the store of
+    // record; these documents exist so a future live-UI stream has something to
+    // subscribe to.
     //
-    // This is not an oversight. Every rule here scopes on `request.auth.uid`,
-    // which is a Firebase Auth identity — but the dashboard authenticates with
-    // the backend's own JWT (and WorkOS/Auth0 SSO). Firebase Auth is wired into
-    // /client-portal only, so a signed-in dashboard user has no `request.auth`
-    // at all and an owner-scoped rule here would deny every read anyway.
+    // Writes must be allowed. The backend mirrors through the *client* SDK
+    // (`firebase/firestore` in firestoreLogService.js) — there is no
+    // firebase-admin anywhere in this repository — so these rules apply to it
+    // exactly as they do to a browser. A deny-all here silently fails every
+    // mirror write. `create`/`update` are therefore open but validated, which is
+    // the same shape as the top-level activity_logs rule below.
     //
-    // Postgres is the store of record for automation_jobs; these documents are
-    // a read-only mirror written by the backend (Admin credentials, which
-    // bypass rules) and read back through GET /api/campaigns/jobs, where
-    // ownership is enforced by the JWT. Granting client access would mean
-    // trusting a uid the app never establishes.
+    // Reads stay denied, and that is the deliberate part. Every read rule here
+    // scopes on `request.auth.uid`, a Firebase Auth identity, but the dashboard
+    // authenticates with the backend's own JWT — Firebase Auth is wired into
+    // /client-portal only. There is no uid to scope on, so an owner-scoped read
+    // would deny everything anyway, and an open read would expose every user's
+    // jobs to everyone. The UI reads through GET /api/campaigns/jobs, where the
+    // JWT enforces ownership.
     match /automationJobs/{jobId} {
-      allow read, write: if false;
+      allow get, list: if false;
+      allow create, update: if isValidId(jobId) && isValidAutomationJob(request.resource.data);
+      allow delete: if false;
     }
 
     match /users/{userId} {
