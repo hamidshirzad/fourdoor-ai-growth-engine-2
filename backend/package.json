@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "worker": "node src/automationWorker.js",
     "dev": "nodemon src/index.js",
-    "migrate": "node src/db/migrations.js",
+    "migrate": "node src/db/migrations.js && node src/db/automationWorkerMigration.js",
     "seed": "node src/db/seed.js",
-    "check": "node --check src/index.js && node --check src/services/aiService.js && node --check src/services/billingService.js && node --check src/config/constants.js && node --check src/services/leadService.js && node --check src/services/scheduler.js && node --check src/services/dynamoService.js && node --check src/services/logService.js && node --check src/services/workosService.js && node --check src/routes/auth.js",
+    "check": "node --check src/index.js && node --check src/automationWorker.js && node --check src/services/automationWorkerService.js && node --check src/services/automationWorkerPolicy.js && node --check src/db/automationWorkerMigration.js && node --check src/services/aiService.js && node --check src/services/billingService.js && node --check src/config/constants.js && node --check src/services/leadService.js && node --check src/services/scheduler.js && node --check src/services/dynamoService.js && node --check src/services/logService.js && node --check src/services/workosService.js && node --check src/routes/auth.js",
     "test": "node --test \"src/**/*.test.js\""
   },
   "dependencies": {
