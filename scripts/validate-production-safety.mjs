@@ -4,11 +4,16 @@ const failures = [];
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 const backendEntry = read('backend/src/index.js');
+const runtimeSafety = read('backend/src/config/runtimeSafety.js');
 const app = read('backend/src/app.js');
 const envExample = read('.env.example');
 
-if (!backendEntry.includes('DISABLE_SCHEDULERS')) {
-  failures.push('Backend entrypoint must expose a scheduler kill switch.');
+if (!backendEntry.includes('shouldStartSchedulers')) {
+  failures.push('Backend entrypoint must use the runtime scheduler safety policy.');
+}
+
+if (!runtimeSafety.includes('DISABLE_SCHEDULERS') || !runtimeSafety.includes('VERCEL_ENV')) {
+  failures.push('Runtime safety policy must honor the scheduler kill switch and preview environment.');
 }
 
 for (const route of ['/health', '/health/live', '/health/ready']) {
