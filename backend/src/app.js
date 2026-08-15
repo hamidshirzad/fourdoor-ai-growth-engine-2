@@ -14,6 +14,7 @@ import uploadRoutes from './routes/upload.js';
 import securityRoutes from './routes/security.js';
 import campaignsRoutes from './routes/campaigns.js';
 import liveAgentRoutes from './routes/liveAgent.js';
+import internalControlPlaneRoutes from './routes/internalControlPlane.js';
 import { authenticateToken } from './middleware/auth.js';
 import { checkDatabaseHealth } from './db/pool.js';
 
@@ -31,17 +32,15 @@ const corsOrigins = (process.env.CORS_ORIGIN || '')
   .filter(Boolean);
 
 app.use(cors({
-  // `origin: true` reflected whatever Origin the caller sent, which is an
-  // allow-all for credentialed requests. Pin it to CORS_ORIGIN in production;
-  // with the variable unset (local dev) reflection is kept for convenience.
   origin: corsOrigins.length ? corsOrigins : true,
   credentials: true
 }));
 
-// Stripe signs the raw request bytes, so this route must be registered before
-// express.json() gets a chance to parse and discard them.
+// Raw-body routes must be registered before express.json(). Stripe verifies its
+// provider signature; the Fourdoor control plane verifies our HMAC signature.
 app.use('/api/billing/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use('/billing/stripe/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/internal/control-plane', express.raw({ type: 'application/json', limit: '256kb' }), internalControlPlaneRoutes);
 
 app.use(express.json({ limit: '1mb' }));
 app.use(rateLimit({
@@ -51,7 +50,6 @@ app.use(rateLimit({
   legacyHeaders: false
 }));
 
-// Health check endpoint for AWS ALB/ELB
 app.get('/health', async (req, res) => {
   const dbHealth = await checkDatabaseHealth();
   const status = dbHealth.healthy ? 'healthy' : 'degraded';
@@ -70,12 +68,10 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// Simple liveness probe
 app.get('/health/live', (req, res) => {
   res.json({ status: 'alive', timestamp: new Date().toISOString() });
 });
 
-// Readiness probe
 app.get('/health/ready', async (req, res) => {
   const dbHealth = await checkDatabaseHealth();
   if (dbHealth.healthy) {
@@ -97,7 +93,6 @@ app.use('/api/security', securityRoutes);
 app.use('/api/campaigns', campaignsRoutes);
 app.use('/api/live-agent', liveAgentRoutes);
 
-// Brief-compatible aliases
 app.use('/auth', authRoutes);
 app.use('/billing', billingRoutes);
 app.post('/generate-content', authenticateToken, (req, res, next) => {
@@ -125,12 +120,6 @@ app.post('/scan', authenticateToken, (req, res, next) => {
   securityRoutes(req, res, next);
 });
 
-// Error handler. Without this, a rejected asyncHandler fell through to
-// Express's default handler, which replies with an HTML stack trace — the
-// frontend's response.json() then failed and every fault surfaced as a generic
-// "API error". No 404 handler is registered on purpose: server.js mounts this
-// app ahead of the Next.js request handler and unmatched paths must fall
-// through to it.
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   if (err.code === '23505') {
