@@ -100,6 +100,19 @@ services:
       - key: WORKOS_ORGANIZATION_ID
         sync: false
 
+      # --- Firestore mirror. Optional and off by default.
+      #
+      # The entire service account JSON, pasted as one value — Render has no
+      # filesystem to place a key file on, so the GOOGLE_APPLICATION_CREDENTIALS
+      # file-path form is not usable here.
+      #
+      # Unset means firestoreLogService.js leaves its client null and every
+      # mirror call returns null. Agent logs and automation jobs still live in
+      # Postgres, which is the store of record either way; the only thing lost is
+      # the Firestore projection. Do not set this expecting it to be required. ---
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+
       # The three node-cron jobs start with the process. On the free plan the
       # service sleeps when idle, so they will not fire on schedule — set this
       # to "true" and drive them externally, or move to a paid instance.

@@ -21,12 +21,6 @@ import {
   Check,
   Plus
 } from 'lucide-react';
-import {
-  fetchFirestoreActivityLogs,
-  subscribeToActivityLogs,
-  addFirestoreActivityLog,
-  FIRESTORE_DATABASE_ID
-} from '../lib/firebase';
 import { apiCall } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 import { toast } from '../lib/toastStore';
@@ -81,12 +75,20 @@ const SAMPLE_SIMULATED_ACTIONS = [
   }
 ];
 
+// How often the auto-refresh poll re-reads the log endpoint.
+//
+// This used to be a Firestore onSnapshot subscription, which pushed updates the
+// instant a document changed. The browser no longer talks to Firestore directly
+// — activity_logs is closed to clients because an open read exposed every user's
+// logs to everyone — so "live" is now a poll against GET /api/activity/logs,
+// where the JWT scopes the query to the signed-in user.
+const REFRESH_INTERVAL_MS = 15_000;
+
 export default function SystemActivityLogs() {
-  const { token, user } = useAuthStore();
+  const { token } = useAuthStore();
 
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sourceMode, setSourceMode] = useState('firestore'); // 'firestore' or 'api'
   const [liveStream, setLiveStream] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgent, setSelectedAgent] = useState('all');
@@ -97,53 +99,28 @@ export default function SystemActivityLogs() {
   const [copiedId, setCopiedId] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
 
-  // Subscribe or fetch logs on mode change
-  useEffect(() => {
-    setLoading(true);
-
-    if (sourceMode === 'firestore' && liveStream) {
-      const unsubscribe = subscribeToActivityLogs(
-        100,
-        (data) => {
-          setLogs(data);
-          setLoading(false);
-          setLastRefreshed(new Date());
-        },
-        (err) => {
-          console.warn('Firestore subscription fallback to REST/API:', err);
-          fetchLogsFromApi();
-        }
-      );
-      return () => unsubscribe();
-    } else {
-      fetchLogsFromCurrentSource();
-    }
-  }, [sourceMode, liveStream, token]);
-
-  const fetchLogsFromApi = async () => {
+  const fetchLogs = async ({ showSpinner = true } = {}) => {
     if (!token) return;
+    if (showSpinner) setLoading(true);
     try {
       const data = await apiCall(`/api/activity/logs?limit=100`, 'GET', null, token);
-      setLogs(data.map((l) => ({ ...l, source: 'api' })));
+      setLogs(data);
     } catch (err) {
-      console.error('API log fetch error:', err);
+      console.error('Activity log fetch error:', err);
     } finally {
       setLoading(false);
       setLastRefreshed(new Date());
     }
   };
 
-  const fetchLogsFromCurrentSource = async () => {
-    setLoading(true);
-    if (sourceMode === 'firestore') {
-      const data = await fetchFirestoreActivityLogs(100);
-      setLogs(data);
-    } else {
-      await fetchLogsFromApi();
-    }
-    setLoading(false);
-    setLastRefreshed(new Date());
-  };
+  useEffect(() => {
+    fetchLogs();
+    if (!liveStream) return undefined;
+    // Background polls do not raise the spinner — a refresh every 15s that
+    // blanks the table would make the list unreadable.
+    const id = setInterval(() => fetchLogs({ showSpinner: false }), REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [liveStream, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSimulateAutomatedAction = async () => {
     setIsSimulating(true);
@@ -151,29 +128,19 @@ export default function SystemActivityLogs() {
     const sample = SAMPLE_SIMULATED_ACTIONS[randomIndex];
 
     try {
-      // 1. Write to Firestore collection
-      const newFsLog = await addFirestoreActivityLog({
-        userId: user?.id || 'system',
-        agent: sample.agent,
-        action: sample.action,
-        status: sample.status,
-        input: sample.input,
-        output: sample.output
-      });
-
-      // 2. Trigger API to mirror in Postgres
-      if (token) {
-        apiCall('/api/content/generate', 'POST', { niche: 'SaaS Demo', goal: 'Test Trigger' }, token).catch(() => {});
-      }
+      // Trigger real backend work rather than writing a log document directly.
+      // The browser used to call addFirestoreActivityLog() here, which only
+      // worked while activity_logs accepted unauthenticated writes — i.e. while
+      // anyone on the internet could forge entries in it. Driving a real agent
+      // run produces a genuine log through the backend instead.
+      await apiCall('/api/content/generate', 'POST', { niche: 'SaaS Demo', goal: 'Test Trigger' }, token);
 
       toast.success(
         'Automated Action Logged',
-        `Generated system log for [${sample.agent}] in Firestore collection "activity_logs".`
+        `Triggered a real [${sample.agent}] run; its log will appear on the next sync.`
       );
 
-      if (!liveStream) {
-        fetchLogsFromCurrentSource();
-      }
+      await fetchLogs({ showSpinner: false });
     } catch (err) {
       toast.error('Simulation Error', err.message);
     } finally {
@@ -219,7 +186,7 @@ export default function SystemActivityLogs() {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner: Firestore Database Indicator & Controls */}
+      {/* Top Banner: source indicator & controls */}
       <div className="rounded-2xl border border-white/10 bg-[#141416] p-5 shadow-xl space-y-4">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -231,14 +198,14 @@ export default function SystemActivityLogs() {
 
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400">
                 <Radio size={12} className="animate-pulse" />
-                <span>Firestore Collection Connected</span>
+                <span>{liveStream ? 'Auto-refreshing' : 'Manual refresh'}</span>
               </span>
             </div>
 
             <p className="text-xs text-neutral-400 font-mono">
-              Database Collection:{' '}
+              Source:{' '}
               <span className="text-orange-400 font-bold font-mono">
-                {FIRESTORE_DATABASE_ID}/activity_logs
+                GET /api/activity/logs
               </span>
             </p>
           </div>
@@ -256,9 +223,9 @@ export default function SystemActivityLogs() {
 
             {/* Manual Refresh */}
             <button
-              onClick={fetchLogsFromCurrentSource}
+              onClick={() => fetchLogs()}
               className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#0A0A0B] px-3 py-2 text-xs font-semibold text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
-              title="Refresh logs from Firestore"
+              title="Reload activity logs now"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin text-orange-400' : ''} />
               <span>Sync Now</span>
@@ -348,7 +315,7 @@ export default function SystemActivityLogs() {
             }`}
           >
             <Radio size={13} className={liveStream ? 'animate-pulse text-orange-400' : ''} />
-            <span>{liveStream ? 'Live Stream ON' : 'Stream OFF'}</span>
+            <span>{liveStream ? 'Auto-refresh ON' : 'Auto-refresh OFF'}</span>
           </button>
         </div>
       </div>
@@ -366,7 +333,7 @@ export default function SystemActivityLogs() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
             <RefreshCw size={28} className="animate-spin text-orange-400" />
-            <p className="text-xs text-neutral-400 font-mono">Fetching activity logs from Firestore...</p>
+            <p className="text-xs text-neutral-400 font-mono">Fetching activity logs...</p>
           </div>
         ) : filteredLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center space-y-3 p-6">
@@ -374,7 +341,7 @@ export default function SystemActivityLogs() {
             <div className="space-y-1">
               <h3 className="text-sm font-bold text-neutral-200">No Activity Logs Found</h3>
               <p className="text-xs text-neutral-400 max-w-md">
-                No logs matched your search or filters. Click "Simulate Action Log" to add test entries directly into Firestore.
+                No logs matched your search or filters. Click "Simulate Action Log" to trigger a real agent run and generate one.
               </p>
             </div>
             <button

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nextRunFor, JOB_TYPES } from './automationService.js';
+import { nextRunFor, effectiveCadence, JOB_TYPES } from './automationService.js';
 
 const BASE = new Date('2026-01-01T00:00:00.000Z');
 const hoursBetween = (a, b) => (b.getTime() - a.getTime()) / 3_600_000;
@@ -30,6 +30,24 @@ test('nextRunFor returns a distinct Date and does not mutate its input', () => {
   const result = nextRunFor('daily', from);
   assert.notEqual(result, from);
   assert.equal(from.toISOString(), BASE.toISOString());
+});
+
+test('effectiveCadence keeps the stored cadence when the mission omits one', () => {
+  // The regression this guards: an update with no `cadence` field left `hourly`
+  // in the column (SQL COALESCE) but scheduled from the daily fallback.
+  assert.equal(effectiveCadence(undefined, 'hourly'), 'hourly');
+  assert.equal(effectiveCadence(null, 'weekly'), 'weekly');
+  assert.equal(hoursBetween(BASE, nextRunFor(effectiveCadence(undefined, 'hourly'), BASE)), 1);
+});
+
+test('effectiveCadence prefers the submitted cadence over the stored one', () => {
+  assert.equal(effectiveCadence('weekly', 'hourly'), 'weekly');
+});
+
+test('effectiveCadence yields null when neither side has a cadence', () => {
+  // nextRunFor still has to cope with this, hence the daily fallback.
+  assert.equal(effectiveCadence(undefined, null), null);
+  assert.equal(hoursBetween(BASE, nextRunFor(effectiveCadence(undefined, null), BASE)), 24);
 });
 
 test('JOB_TYPES is the exact set the spec asks for', () => {

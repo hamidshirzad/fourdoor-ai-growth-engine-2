@@ -10,9 +10,17 @@ const CADENCE_OPTIONS = ['hourly', 'daily', 'weekly'];
  * `status === 'active'` is the automation switch — the same column the
  * CONTENT_CRON scheduler filters on — so this toggle reflects real scheduler
  * state rather than a separate flag that could disagree with it.
+ *
+ * `next_run_at` is the second half of that test, and it is not optional.
+ * `campaigns.status` defaults to 'active' at the database level, so every
+ * campaign ever created — including all of them predating this feature — would
+ * otherwise render as "automation running" over an empty job queue.
+ * `next_run_at` is set only by activateCampaignAutomation and explicitly nulled
+ * by the deactivate path, so it distinguishes a campaign someone actually
+ * started from one that merely inherited the default.
  */
 export default function CampaignMissionPanel({ campaign, onSubmit, isBusy = false }) {
-  const isActive = campaign.status === 'active';
+  const isActive = campaign.status === 'active' && Boolean(campaign.next_run_at);
   const [form, setForm] = useState({
     objective: campaign.goal || '',
     targetAudience: campaign.audience || '',

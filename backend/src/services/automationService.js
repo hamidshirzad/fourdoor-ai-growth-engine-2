@@ -30,6 +30,46 @@ export function nextRunFor(cadence, from = new Date()) {
   return new Date(from.getTime() + hours * 60 * 60 * 1000);
 }
 
+/**
+ * The cadence a mission update will actually leave on the row.
+ *
+ * This mirrors `cadence = COALESCE($5, cadence)` in the UPDATE below, and exists
+ * because scheduling used to read `mission.cadence` directly. An update that
+ * omitted the field kept the stored cadence in the column but scheduled
+ * next_run_at from the daily fallback — so an hourly campaign said "hourly" and
+ * ran once a day. Both sides must consult the same value.
+ */
+export function effectiveCadence(missionCadence, storedCadence) {
+  return missionCadence ?? storedCadence ?? null;
+}
+
+/**
+ * Best-effort bookkeeping that runs once the transaction has committed.
+ *
+ * This lives outside the transaction's try/catch on purpose. When the mirror and
+ * the audit log sat inside it, a telemetry failure was rethrown *after* COMMIT:
+ * the caller saw an error for work the database had already accepted, retried,
+ * and the retry created zero jobs because the live-job unique index blocked
+ * them — leaving a campaign marked active while the user was told it failed.
+ *
+ * Nothing in here may change the caller's outcome, so every failure is logged
+ * and swallowed, and the two sinks are isolated from each other.
+ */
+async function recordAfterCommit(jobs, logEvent) {
+  for (const job of jobs) {
+    try {
+      await mirrorAutomationJob(job);
+    } catch (err) {
+      console.error('Automation job mirror failed after commit:', err.message);
+    }
+  }
+  try {
+    await logEvent();
+  } catch (err) {
+    console.error('Automation audit log failed after commit:', err.message);
+  }
+}
+
 async function loadOwnedCampaign(client, userId, campaignId) {
   const { rows } = await client.query(
     'SELECT * FROM campaigns WHERE id = $1 AND user_id = $2',
@@ -54,10 +94,13 @@ async function loadOwnedCampaign(client, userId, campaignId) {
  */
 export async function activateCampaignAutomation(userId, campaignId, mission = {}) {
   const client = await pool.connect();
+  let campaign;
+  let created = [];
   try {
     await client.query('BEGIN');
-    await loadOwnedCampaign(client, userId, campaignId);
+    const existing = await loadOwnedCampaign(client, userId, campaignId);
 
+    const cadence = effectiveCadence(mission.cadence, existing.cadence);
     const now = new Date();
     const { rows } = await client.query(
       `UPDATE campaigns
@@ -77,17 +120,16 @@ export async function activateCampaignAutomation(userId, campaignId, mission = {
         mission.budgetRange ?? null,
         mission.channels ? JSON.stringify(mission.channels) : null,
         mission.cadence ?? null,
-        nextRunFor(mission.cadence ?? null, now),
+        nextRunFor(cadence, now),
         campaignId,
         userId
       ]
     );
-    const campaign = rows[0];
+    campaign = rows[0];
 
     // ON CONFLICT DO NOTHING against the live-job partial unique index:
     // re-activating an already-running campaign refreshes the mission without
     // stacking a duplicate queue.
-    const created = [];
     for (const type of JOB_TYPES) {
       const scheduledFor = new Date(now.getTime() + FIRST_RUN_OFFSET_HOURS[type] * 60 * 60 * 1000);
       const inserted = await client.query(
@@ -101,21 +143,18 @@ export async function activateCampaignAutomation(userId, campaignId, mission = {
     }
 
     await client.query('COMMIT');
-
-    // Mirroring and logging happen strictly after COMMIT, never inside it.
-    // Firestore is a mirror; a failure there must not roll back an activation
-    // the database has already accepted.
-    for (const job of created) await mirrorAutomationJob(job);
-    await logAgent(userId, 'automation', 'campaign_activated', 'success',
-      { campaignId }, { jobsCreated: created.length });
-
-    return { campaign, jobs: created };
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;
   } finally {
     client.release();
   }
+
+  await recordAfterCommit(created, () =>
+    logAgent(userId, 'automation', 'campaign_activated', 'success',
+      { campaignId }, { jobsCreated: created.length }));
+
+  return { campaign, jobs: created };
 }
 
 /**
@@ -125,6 +164,8 @@ export async function activateCampaignAutomation(userId, campaignId, mission = {
  */
 export async function deactivateCampaignAutomation(userId, campaignId) {
   const client = await pool.connect();
+  let campaign;
+  let cancelledJobs = [];
   try {
     await client.query('BEGIN');
     await loadOwnedCampaign(client, userId, campaignId);
@@ -134,6 +175,7 @@ export async function deactivateCampaignAutomation(userId, campaignId) {
        WHERE id = $1 AND user_id = $2 RETURNING *`,
       [campaignId, userId]
     );
+    campaign = rows[0];
 
     const cancelled = await client.query(
       `UPDATE automation_jobs
@@ -142,20 +184,21 @@ export async function deactivateCampaignAutomation(userId, campaignId) {
        RETURNING *`,
       [campaignId, userId]
     );
+    cancelledJobs = cancelled.rows;
 
     await client.query('COMMIT');
-
-    for (const job of cancelled.rows) await mirrorAutomationJob(job);
-    await logAgent(userId, 'automation', 'campaign_deactivated', 'success',
-      { campaignId }, { jobsCancelled: cancelled.rowCount });
-
-    return { campaign: rows[0], cancelledCount: cancelled.rowCount };
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;
   } finally {
     client.release();
   }
+
+  await recordAfterCommit(cancelledJobs, () =>
+    logAgent(userId, 'automation', 'campaign_deactivated', 'success',
+      { campaignId }, { jobsCancelled: cancelledJobs.length }));
+
+  return { campaign, cancelledCount: cancelledJobs.length };
 }
 
 /**

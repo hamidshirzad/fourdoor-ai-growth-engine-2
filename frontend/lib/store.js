@@ -47,6 +47,7 @@ export const useAuthStore = create((set) => ({
   logout: () => {
     removeToken();
     set({ user: null, token: null });
+    clearUserScopedStores();
     toast.info('Logged Out', 'You have been signed out.');
   },
 
@@ -72,6 +73,8 @@ export const useAuthStore = create((set) => ({
 export const useContentStore = create((set) => ({
   posts: [],
   isLoading: false,
+
+  reset: () => set({ posts: [], isLoading: false }),
 
   generateContent: async (niche, audience, goal, token) => {
     set({ isLoading: true });
@@ -128,6 +131,8 @@ export const useContentStore = create((set) => ({
 export const useLeadsStore = create((set) => ({
   leads: [],
   isLoading: false,
+
+  reset: () => set({ leads: [], isLoading: false }),
 
   getLeads: async (token) => {
     set({ isLoading: true });
@@ -209,6 +214,8 @@ export const useSecurityStore = create((set) => ({
   isLoading: false,
   scanWarnings: {},
 
+  reset: () => set({ scans: [], currentScan: null, isLoading: false, scanWarnings: {} }),
+
   scanContent: async (content, type = 'content', postId = null, campaignId = null, token) => {
     set({ isLoading: true });
     try {
@@ -276,6 +283,8 @@ export const useSecurityStore = create((set) => ({
 export const useTemplateStore = create((set) => ({
   templates: [],
   isLoading: false,
+
+  reset: () => set({ templates: [], isLoading: false }),
 
   getTemplates: async (token) => {
     set({ isLoading: true });
@@ -347,6 +356,8 @@ export const useAutomationStore = create((set, get) => ({
   jobs: [],
   isLoading: false,
 
+  reset: () => set({ campaigns: [], jobs: [], isLoading: false }),
+
   fetchCampaigns: async (token) => {
     set({ isLoading: true });
     try {
@@ -401,3 +412,20 @@ export const useAutomationStore = create((set, get) => ({
     }
   }
 }));
+
+/**
+ * Drop every store holding data belonging to the signed-in user.
+ *
+ * Without this, signing out and signing in as someone else — with no page
+ * reload in between — left the previous user's campaigns, posts, leads, scans
+ * and templates on screen until each page happened to refetch. Declared after
+ * the stores it clears; it is only ever called at runtime, long after this
+ * module finishes evaluating.
+ */
+function clearUserScopedStores() {
+  useContentStore.getState().reset();
+  useLeadsStore.getState().reset();
+  useSecurityStore.getState().reset();
+  useTemplateStore.getState().reset();
+  useAutomationStore.getState().reset();
+}

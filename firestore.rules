@@ -38,36 +38,24 @@ service cloud.firestore {
         data.status is string && data.status.size() <= 64;
     }
 
-    function isValidAutomationJob(data) {
-      return data.keys().hasAll(['userId', 'campaignId', 'type', 'status']) &&
-        data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
-        data.campaignId is string && data.campaignId.size() > 0 && data.campaignId.size() <= 128 &&
-        data.type is string && data.type.size() <= 64 &&
-        data.status is string && data.status.size() <= 32;
-    }
-
     // Mirror of the Postgres `automation_jobs` table. Postgres is the store of
-    // record; these documents exist so a future live-UI stream has something to
-    // subscribe to.
+    // record; these documents exist so the backend has somewhere to project
+    // live job status.
     //
-    // Writes must be allowed. The backend mirrors through the *client* SDK
-    // (`firebase/firestore` in firestoreLogService.js) — there is no
-    // firebase-admin anywhere in this repository — so these rules apply to it
-    // exactly as they do to a browser. A deny-all here silently fails every
-    // mirror write. `create`/`update` are therefore open but validated, which is
-    // the same shape as the top-level activity_logs rule below.
+    // No client touches this collection, in either direction. The backend writes
+    // through the **Admin SDK** (firestoreLogService.js), which authenticates as
+    // a service account and bypasses these rules entirely — so denying everything
+    // here costs the mirror nothing.
     //
-    // Reads stay denied, and that is the deliberate part. Every read rule here
-    // scopes on `request.auth.uid`, a Firebase Auth identity, but the dashboard
-    // authenticates with the backend's own JWT — Firebase Auth is wired into
-    // /client-portal only. There is no uid to scope on, so an owner-scoped read
+    // Reads are denied rather than owner-scoped because there is no owner to
+    // scope on. Every rule in this file keys on `request.auth.uid`, a Firebase
+    // Auth identity, but the dashboard authenticates with the backend's own JWT
+    // — Firebase Auth is wired into /client-portal only. An owner-scoped read
     // would deny everything anyway, and an open read would expose every user's
     // jobs to everyone. The UI reads through GET /api/campaigns/jobs, where the
     // JWT enforces ownership.
     match /automationJobs/{jobId} {
-      allow get, list: if false;
-      allow create, update: if isValidId(jobId) && isValidAutomationJob(request.resource.data);
-      allow delete: if false;
+      allow read, write: if false;
     }
 
     match /users/{userId} {
@@ -92,10 +80,18 @@ service cloud.firestore {
       }
     }
 
+    // Top-level activity log, written by the backend through the Admin SDK.
+    //
+    // This used to read `allow get, list: if true` with an unauthenticated
+    // `create`, which made every user's agent activity world-readable and let
+    // anyone forge entries. The browser relied on that open read to stream logs
+    // directly; it now goes through GET /api/activity/logs instead, where the
+    // JWT scopes the query to the caller.
+    //
+    // The per-user copy under /users/{userId}/activity_logs above stays
+    // owner-scoped for the Firebase-authenticated /client-portal.
     match /activity_logs/{logId} {
-      allow get, list: if true;
-      allow create: if isValidId(logId) && isValidActivityLog(request.resource.data);
-      allow update, delete: if isSignedIn();
+      allow read, write: if false;
     }
   }
 }

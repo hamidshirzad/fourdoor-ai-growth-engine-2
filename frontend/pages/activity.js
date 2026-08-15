@@ -7,7 +7,7 @@ export default function ActivityPage() {
     <ProtectedRoute>
       <AppShell
         title="Recent System Activity Logs"
-        subtitle="Real-time transparency into automated actions, background agent executions, and system events stored in Firestore."
+        subtitle="Transparency into automated actions, background agent executions, and system events, refreshed every 15 seconds."
       >
         <SystemActivityLogs />
       </AppShell>
