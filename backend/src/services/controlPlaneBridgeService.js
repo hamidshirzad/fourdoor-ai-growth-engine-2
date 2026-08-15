@@ -17,7 +17,7 @@ function automationAllowed(plan, subscriptionStatus) {
   return ACTIVE_STATES.has(subscriptionStatus) && (plan === 'pro' || plan === 'agency');
 }
 
-async function resolveOrProvisionUser(client, identity, { requireActive = false } = {}) {
+async function resolveOrProvisionUser(client, identity, { requireAutomation = false } = {}) {
   const provider = identity.provider || 'firebase';
   const subject = String(identity.subject || '').trim();
   const email = String(identity.email || '').trim().toLowerCase();
@@ -30,7 +30,7 @@ async function resolveOrProvisionUser(client, identity, { requireActive = false 
     error.status = 400;
     throw error;
   }
-  if (requireActive && !automationAllowed(plan, subscriptionStatus)) {
+  if (requireAutomation && !automationAllowed(plan, subscriptionStatus)) {
     const error = new Error('Pro or Agency automation entitlement is required');
     error.status = ACTIVE_STATES.has(subscriptionStatus) ? 403 : 402;
     throw error;
@@ -185,12 +185,13 @@ export async function syncControlPlaneEntitlement(payload) {
 }
 
 export async function syncControlPlaneCampaign(payload) {
+  const active = payload.campaign?.active !== false;
   const client = await pool.connect();
   let user;
   let campaign;
   try {
     await client.query('BEGIN');
-    user = await resolveOrProvisionUser(client, payload.identity || {}, { requireActive: true });
+    user = await resolveOrProvisionUser(client, payload.identity || {}, { requireAutomation: active });
     campaign = await upsertExternalCampaign(client, user.id, payload.campaign || {});
     await client.query('COMMIT');
   } catch (error) {
@@ -200,7 +201,6 @@ export async function syncControlPlaneCampaign(payload) {
     client.release();
   }
 
-  const active = payload.campaign?.active !== false;
   const result = active
     ? await activateCampaignAutomation(user.id, campaign.id, {
         objective: payload.campaign?.goal,
