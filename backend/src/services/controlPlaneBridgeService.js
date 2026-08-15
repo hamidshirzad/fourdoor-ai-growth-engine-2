@@ -13,7 +13,11 @@ function normalizePlan(plan) {
   return PLAN_ORDER.includes(plan) ? plan : 'starter';
 }
 
-async function resolveOrProvisionUser(client, identity) {
+function automationAllowed(plan, subscriptionStatus) {
+  return ACTIVE_STATES.has(subscriptionStatus) && (plan === 'pro' || plan === 'agency');
+}
+
+async function resolveOrProvisionUser(client, identity, { requireActive = false } = {}) {
   const provider = identity.provider || 'firebase';
   const subject = String(identity.subject || '').trim();
   const email = String(identity.email || '').trim().toLowerCase();
@@ -26,9 +30,9 @@ async function resolveOrProvisionUser(client, identity) {
     error.status = 400;
     throw error;
   }
-  if (!ACTIVE_STATES.has(subscriptionStatus)) {
-    const error = new Error('Active paid entitlement is required');
-    error.status = 402;
+  if (requireActive && !automationAllowed(plan, subscriptionStatus)) {
+    const error = new Error('Pro or Agency automation entitlement is required');
+    error.status = ACTIVE_STATES.has(subscriptionStatus) ? 403 : 402;
     throw error;
   }
 
@@ -93,6 +97,30 @@ async function resolveOrProvisionUser(client, identity) {
   return updated.rows[0];
 }
 
+async function pauseExternalAutomation(client, userId) {
+  const campaigns = await client.query(
+    `UPDATE campaigns
+     SET status = 'paused', next_run_at = NULL, updated_at = NOW()
+     WHERE user_id = $1 AND external_source = 'fourdooraiops' AND status = 'active'
+     RETURNING id`,
+    [userId]
+  );
+
+  await client.query(
+    `UPDATE automation_jobs j
+     SET status = 'cancelled', updated_at = NOW()
+     WHERE j.user_id = $1
+       AND j.status = 'pending'
+       AND EXISTS (
+         SELECT 1 FROM campaigns c
+         WHERE c.id = j.campaign_id AND c.external_source = 'fourdooraiops'
+       )`,
+    [userId]
+  );
+
+  return campaigns.rowCount;
+}
+
 async function upsertExternalCampaign(client, userId, campaign) {
   const externalId = String(campaign.externalId || '').trim();
   if (!externalId) {
@@ -133,13 +161,36 @@ async function upsertExternalCampaign(client, userId, campaign) {
   return result.rows[0];
 }
 
+export async function syncControlPlaneEntitlement(payload) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const user = await resolveOrProvisionUser(client, payload.identity || {});
+    const allowed = automationAllowed(user.plan, user.subscription_status);
+    const pausedCampaigns = allowed ? 0 : await pauseExternalAutomation(client, user.id);
+    await client.query('COMMIT');
+    return {
+      growthEngineUserId: user.id,
+      plan: user.plan,
+      subscriptionStatus: user.subscription_status,
+      automationAllowed: allowed,
+      pausedCampaigns
+    };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function syncControlPlaneCampaign(payload) {
   const client = await pool.connect();
   let user;
   let campaign;
   try {
     await client.query('BEGIN');
-    user = await resolveOrProvisionUser(client, payload.identity || {});
+    user = await resolveOrProvisionUser(client, payload.identity || {}, { requireActive: true });
     campaign = await upsertExternalCampaign(client, user.id, payload.campaign || {});
     await client.query('COMMIT');
   } catch (error) {
