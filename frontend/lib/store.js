@@ -47,6 +47,7 @@ export const useAuthStore = create((set) => ({
   logout: () => {
     removeToken();
     set({ user: null, token: null });
+    clearUserScopedStores();
     toast.info('Logged Out', 'You have been signed out.');
   },
 
@@ -72,6 +73,8 @@ export const useAuthStore = create((set) => ({
 export const useContentStore = create((set) => ({
   posts: [],
   isLoading: false,
+
+  reset: () => set({ posts: [], isLoading: false }),
 
   generateContent: async (niche, audience, goal, token) => {
     set({ isLoading: true });
@@ -128,6 +131,8 @@ export const useContentStore = create((set) => ({
 export const useLeadsStore = create((set) => ({
   leads: [],
   isLoading: false,
+
+  reset: () => set({ leads: [], isLoading: false }),
 
   getLeads: async (token) => {
     set({ isLoading: true });
@@ -209,6 +214,8 @@ export const useSecurityStore = create((set) => ({
   isLoading: false,
   scanWarnings: {},
 
+  reset: () => set({ scans: [], currentScan: null, isLoading: false, scanWarnings: {} }),
+
   scanContent: async (content, type = 'content', postId = null, campaignId = null, token) => {
     set({ isLoading: true });
     try {
@@ -277,6 +284,8 @@ export const useTemplateStore = create((set) => ({
   templates: [],
   isLoading: false,
 
+  reset: () => set({ templates: [], isLoading: false }),
+
   getTemplates: async (token) => {
     set({ isLoading: true });
     try {
@@ -341,3 +350,82 @@ export const useTemplateStore = create((set) => ({
     }
   }
 }));
+
+export const useAutomationStore = create((set, get) => ({
+  campaigns: [],
+  jobs: [],
+  isLoading: false,
+
+  reset: () => set({ campaigns: [], jobs: [], isLoading: false }),
+
+  fetchCampaigns: async (token) => {
+    set({ isLoading: true });
+    try {
+      const result = await apiCall('/api/campaigns', 'GET', null, token);
+      set({ campaigns: result.campaigns || [] });
+      return { success: true };
+    } catch (err) {
+      toast.error("Couldn't load campaigns", err.message);
+      return { error: err.message };
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  fetchJobs: async (token, filters = {}) => {
+    try {
+      const params = new URLSearchParams(
+        Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')
+      ).toString();
+      const result = await apiCall(`/api/campaigns/jobs${params ? `?${params}` : ''}`, 'GET', null, token);
+      set({ jobs: result.jobs || [] });
+      return { success: true };
+    } catch (err) {
+      toast.error("Couldn't load automation jobs", err.message);
+      return { error: err.message };
+    }
+  },
+
+  // One call for both directions. `active: false` needs no mission fields, so
+  // pausing works without re-sending the whole form.
+  setAutomation: async (campaignId, active, mission, token) => {
+    set({ isLoading: true });
+    try {
+      const body = active ? { active: true, ...mission } : { active: false };
+      const result = await apiCall(`/api/campaigns/${campaignId}/automation`, 'PUT', body, token);
+      toast.success(
+        active ? 'Automation on' : 'Automation paused',
+        active
+          ? `${result.jobs?.length || 0} job(s) queued for this campaign.`
+          : `${result.cancelledCount || 0} pending job(s) cancelled.`
+      );
+      // Re-read rather than patching local state, so the counts shown come from
+      // the database that just enforced the live-job constraint.
+      await get().fetchCampaigns(token);
+      await get().fetchJobs(token);
+      return { success: true, ...result };
+    } catch (err) {
+      toast.error(active ? "Couldn't start automation" : "Couldn't pause automation", err.message);
+      return { error: err.message };
+    } finally {
+      set({ isLoading: false });
+    }
+  }
+}));
+
+/**
+ * Drop every store holding data belonging to the signed-in user.
+ *
+ * Without this, signing out and signing in as someone else — with no page
+ * reload in between — left the previous user's campaigns, posts, leads, scans
+ * and templates on screen until each page happened to refetch. Declared after
+ * the stores it clears; it is only ever called at runtime, long after this
+ * module finishes evaluating.
+ */
+function clearUserScopedStores() {
+  useContentStore.getState().reset();
+  useLeadsStore.getState().reset();
+  useSecurityStore.getState().reset();
+  useTemplateStore.getState().reset();
+  useAutomationStore.getState().reset();
+}

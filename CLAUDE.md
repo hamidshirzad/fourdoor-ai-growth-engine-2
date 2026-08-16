@@ -146,6 +146,40 @@ Optional WorkOS integration following the same graceful-fallback pattern as S3/A
 - **Audit Logs** — `logAgent()` mirrors each agent activity event to WorkOS Audit Logs (event identity + status only; full payloads stay in Postgres/DynamoDB). Requires `WORKOS_ORGANIZATION_ID`.
 - **AuthKit SSO** — `GET /api/auth/sso/authorize` redirects to WorkOS AuthKit; `GET /api/auth/sso/callback` exchanges the code, upserts a local user (matched by `workos_id`, then email), and redirects to the frontend `/sso-callback` page with a **locally signed JWT** in the URL fragment. The local JWT remains the session token, so all existing middleware and protected routes work unchanged. SSO-only users have `password_hash = NULL` and cannot password-login.
 
+### Firestore mirror (`backend/src/services/firestoreLogService.js`)
+
+Postgres is the store of record. Firestore holds a best-effort projection of
+agent activity logs (`activity_logs`) and automation jobs (`automationJobs`), and
+the app runs unchanged when it is absent — `db` stays `null` and every export
+returns its empty value. That is the state of every deployed environment today.
+
+Two rules hold this together:
+
+1. **The backend uses the Admin SDK, never the client SDK.** Client SDK writes
+   are evaluated against `firestore.rules` exactly as a browser's are, so a
+   server-side mirror built on it can only work if the collections are writable
+   by anyone holding the project id — which is committed in
+   `firebase-applet-config.json`. The Admin SDK authenticates as a service
+   account (`FIREBASE_SERVICE_ACCOUNT_JSON`) and bypasses rules, which is what
+   allows the rules to deny clients outright.
+2. **No browser code touches Firestore.** Both collections are `allow read,
+   write: if false`. The previous top-level `activity_logs` rule was
+   `allow get, list: if true` with an open `create`, so every user's agent
+   activity was world-readable and forgeable; the `/activity` page depended on
+   that. It now reads `GET /api/activity/logs`, where the JWT scopes the query
+   to the caller, and polls every 15s instead of streaming via `onSnapshot`.
+
+`getFirestoreAgentLogs()` filters on `userId`, which needs a composite index on
+`(userId asc, createdAt desc)`. Without it Firestore returns `FAILED_PRECONDITION`
+and the caller's catch turns that into an empty list — a missing index looks like
+"no logs", not an error. The console URL to create it appears in the logged
+message.
+
+Firebase Auth remains wired into `/client-portal` only (`lib/firebaseAuth.js`,
+which initializes its own app). Dashboard auth is the backend JWT, so
+`request.auth.uid` is null there — which is why owner-scoped Firestore rules
+cannot be used for dashboard data.
+
 ### Billing (`stripeService.js`, `billingService.js`)
 
 Stripe is the active provider; `billingService.js` keeps PayPal working for
@@ -225,6 +259,7 @@ Migrations run sequentially from a plain array in `migrations.js` (no migration 
 | `SECURITY_SCAN_BATCH_SIZE` | Max posts scanned per backfill run (default `100`) |
 | `DYNAMODB_AGENT_LOGS_TABLE` | Optional; when set, agent activity logs are mirrored to this DynamoDB table via `dynamoService.js` (Postgres stays the source of truth) |
 | `AGENT_LOGS_RETENTION_DAYS` | TTL for mirrored DynamoDB agent-log items (default `90`) |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Optional; the whole service-account JSON as one value. Enables the Firestore mirror in `firestoreLogService.js`. Unset means every mirror call returns `null` and the app runs on Postgres alone |
 | `WORKOS_API_KEY` | Optional; enables WorkOS (`workosService.js`) — Audit Log streaming and AuthKit SSO |
 | `WORKOS_CLIENT_ID` | WorkOS client id; required for AuthKit SSO login |
 | `WORKOS_ORGANIZATION_ID` | WorkOS organization (`org_...`) that Audit Log events are recorded against; audit streaming is off without it |

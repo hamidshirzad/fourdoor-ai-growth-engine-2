@@ -82,11 +82,19 @@ export function startSchedulers() {
 
   cron.schedule(process.env.CONTENT_CRON || '0 9 * * *', async () => {
     try {
+      // `status = 'active'` is not sufficient on its own: campaigns.status
+      // DEFAULTs to 'active', so a campaign nobody ever activated matches it.
+      // next_run_at is set only by activateCampaignAutomation and nulled by the
+      // deactivate path, so the pair distinguishes a started campaign from one
+      // that merely inherited the default — and it is the same test
+      // CampaignMissionPanel uses to decide whether to show the Pause button.
+      // Without it the panel could label a campaign paused while this job kept
+      // generating content for it, with no way to stop it from the UI.
       const campaigns = await pool.query(
         `SELECT c.*, u.id AS user_id, u.name, u.email, u.company, u.role, u.plan, u.subscription_status, u.onboarding
          FROM campaigns c
          JOIN users u ON u.id = c.user_id
-         WHERE c.status = 'active'`
+         WHERE c.status = 'active' AND c.next_run_at IS NOT NULL`
       );
 
       await runDailyContentGenerationOnce(campaigns.rows);

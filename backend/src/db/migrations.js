@@ -186,6 +186,46 @@ const migrations = [
   'CREATE INDEX IF NOT EXISTS idx_security_scans_user_created ON security_scans(user_id, created_at DESC);',
   // Backs the SECURITY_SCAN_CRON anti-join that finds posts with no scan yet.
   'CREATE INDEX IF NOT EXISTS idx_security_scans_post ON security_scans(post_id);',
+  // --- Campaign automation ------------------------------------------------
+  //
+  // Only four new columns. The spec's `objective` and `targetAudience` are the
+  // existing `goal` and `audience`; `cadence` and `status` already exist, and
+  // `status = 'active'` is already what the CONTENT_CRON job filters on in
+  // scheduler.js — so activating automation and activating a campaign are one
+  // switch rather than two that can disagree.
+  `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS budget_range VARCHAR(60);`,
+  `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS channels JSONB NOT NULL DEFAULT '[]'::jsonb;`,
+  `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMPTZ;`,
+  `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ;`,
+
+  // Job queue lives in Postgres, not Firestore: it holds primary operational
+  // state and needs a real foreign key, so deleting a campaign cannot orphan
+  // its jobs. Firestore receives a mirror for live UI, the same direction as
+  // agent logs, which keeps the loop running when Firestore is unavailable.
+  `
+    CREATE TABLE IF NOT EXISTS automation_jobs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      type VARCHAR(40) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      scheduled_for TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      result_summary TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `,
+  // Two read paths: "my jobs, newest first" for the UI, "what is due" for the
+  // runner. One index each.
+  'CREATE INDEX IF NOT EXISTS idx_automation_jobs_user_created ON automation_jobs(user_id, created_at DESC);',
+  `CREATE INDEX IF NOT EXISTS idx_automation_jobs_due ON automation_jobs(status, scheduled_for) WHERE status = 'pending';`,
+  // One live job per type per campaign. Re-activating a campaign that is already
+  // running must not stack a second identical queue; a partial unique index
+  // makes that a database guarantee rather than a convention service code can
+  // forget.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_jobs_live_unique
+     ON automation_jobs(campaign_id, type) WHERE status IN ('pending', 'running');`,
+
   // WorkOS AuthKit SSO: SSO-only users have no local password.
   'ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;',
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS workos_id VARCHAR(255) UNIQUE;',
@@ -218,7 +258,45 @@ const migrations = [
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `,
-  'CREATE INDEX IF NOT EXISTS idx_outreach_templates_user_created ON outreach_templates(user_id, created_at DESC);'
+  'CREATE INDEX IF NOT EXISTS idx_outreach_templates_user_created ON outreach_templates(user_id, created_at DESC);',
+
+  // Backfill next_run_at for campaigns the scheduler is already processing.
+  //
+  // `status` alone used to mean "automation running", but campaigns.status
+  // DEFAULTs to 'active', so every campaign ever created reads as running. The
+  // mission panel therefore tests `status = 'active' AND next_run_at IS NOT
+  // NULL`, and the CONTENT_CRON query now does the same — otherwise a campaign
+  // that was never activated shows "Paused" with no Pause button while the
+  // scheduler keeps generating content for it, with no way to stop it.
+  //
+  // Adding the gate without this backfill would silently stop content
+  // generation for every campaign predating the feature. Cadences match
+  // CADENCE_HOURS in automationService.js; anything unrecognised takes the same
+  // daily fallback as nextRunFor().
+  //
+  // The `created_at` cutoff is load-bearing, not cosmetic. runMigrations() has
+  // no schema-version tracking — it re-runs every statement on every boot — so
+  // an unbounded `status = 'active' AND next_run_at IS NULL` would fire on each
+  // redeploy. Campaigns default to status='active' with next_run_at NULL
+  // (contentService.upsertCampaign inserts neither column), so a campaign the
+  // user never activated would be silently enrolled into CONTENT_CRON on the
+  // next restart: the mission panel would flip to "running" and daily content
+  // generation would begin with no user action. Restricting to rows created
+  // before the feature shipped keeps this a genuine one-time backfill of
+  // pre-feature campaigns and makes re-runs a no-op — post-feature campaigns
+  // are activated explicitly through activateCampaignAutomation, which sets
+  // next_run_at itself.
+  `
+    UPDATE campaigns
+    SET next_run_at = NOW() + CASE LOWER(COALESCE(cadence, ''))
+                                WHEN 'hourly' THEN INTERVAL '1 hour'
+                                WHEN 'weekly' THEN INTERVAL '7 days'
+                                ELSE INTERVAL '1 day'
+                              END
+    WHERE status = 'active'
+      AND next_run_at IS NULL
+      AND created_at < TIMESTAMPTZ '2026-08-15 19:52:31+00';
+  `
 ];
 
 export async function runMigrations() {

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { BarChart3, Bot, Calendar, CalendarDays, CreditCard, HelpCircle, Inbox, Kanban, LayoutDashboard, ListChecks, Lock, MessageSquare, Search, Settings, Shield } from 'lucide-react';
+import { BarChart3, Bot, Calendar, CalendarDays, CreditCard, HelpCircle, Inbox, Kanban, LayoutDashboard, ListChecks, Lock, MessageSquare, Search, Settings, Shield, Target } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuthStore } from '../lib/store';
 import Logo from './marketing/Logo';
@@ -10,6 +10,7 @@ const MotionLink = motion.create(Link);
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/client-portal', label: 'Client Portal', icon: Lock },
+  { href: '/campaigns', label: 'Campaigns', icon: Target },
   { href: '/content', label: 'Calendar', icon: CalendarDays },
   { href: '/kanban', label: 'Kanban', icon: Kanban },
   { href: '/google-calendar', label: 'G-Calendar', icon: Calendar },

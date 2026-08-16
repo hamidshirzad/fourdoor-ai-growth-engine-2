@@ -20,6 +20,23 @@ export async function logAgent(userId, agent, action, status, input = {}, output
   return result.rows[0];
 }
 
+/**
+ * Give a Postgres log row the same shape as a Firestore one.
+ *
+ * GET /api/activity/logs serves whichever source is configured: Firestore
+ * documents carry `createdAt`, Postgres rows carry `created_at`. Consumers read
+ * `createdAt`, so an un-normalised Postgres row arrived with no timestamp at
+ * all and the UI fell back to the render time — every entry claimed to have
+ * just happened, and its displayed time moved on each 15s poll. Normalising
+ * where the rows are produced keeps that contract in one place instead of
+ * asking every consumer to handle both spellings.
+ */
+export function normalizeAgentLog(row) {
+  if (!row || row.created_at === undefined) return row;
+  const { created_at: createdAt, ...rest } = row;
+  return { ...rest, createdAt };
+}
+
 export async function getAgentLogs(userId, limit = 100) {
   const result = await pool.query(
     `SELECT * FROM agent_logs
@@ -28,5 +45,5 @@ export async function getAgentLogs(userId, limit = 100) {
      LIMIT $2`,
     [userId, limit]
   );
-  return result.rows;
+  return result.rows.map(normalizeAgentLog);
 }
