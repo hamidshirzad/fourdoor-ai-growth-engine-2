@@ -270,11 +270,22 @@ const migrations = [
   // scheduler keeps generating content for it, with no way to stop it.
   //
   // Adding the gate without this backfill would silently stop content
-  // generation for every campaign predating the feature. This only ever *adds*
-  // a next_run_at to rows the scheduler already selects, so no campaign starts
-  // or stops generating as a result. Cadences match CADENCE_HOURS in
-  // automationService.js; anything unrecognised takes the same daily fallback
-  // as nextRunFor().
+  // generation for every campaign predating the feature. Cadences match
+  // CADENCE_HOURS in automationService.js; anything unrecognised takes the same
+  // daily fallback as nextRunFor().
+  //
+  // The `created_at` cutoff is load-bearing, not cosmetic. runMigrations() has
+  // no schema-version tracking — it re-runs every statement on every boot — so
+  // an unbounded `status = 'active' AND next_run_at IS NULL` would fire on each
+  // redeploy. Campaigns default to status='active' with next_run_at NULL
+  // (contentService.upsertCampaign inserts neither column), so a campaign the
+  // user never activated would be silently enrolled into CONTENT_CRON on the
+  // next restart: the mission panel would flip to "running" and daily content
+  // generation would begin with no user action. Restricting to rows created
+  // before the feature shipped keeps this a genuine one-time backfill of
+  // pre-feature campaigns and makes re-runs a no-op — post-feature campaigns
+  // are activated explicitly through activateCampaignAutomation, which sets
+  // next_run_at itself.
   `
     UPDATE campaigns
     SET next_run_at = NOW() + CASE LOWER(COALESCE(cadence, ''))
@@ -282,7 +293,9 @@ const migrations = [
                                 WHEN 'weekly' THEN INTERVAL '7 days'
                                 ELSE INTERVAL '1 day'
                               END
-    WHERE status = 'active' AND next_run_at IS NULL;
+    WHERE status = 'active'
+      AND next_run_at IS NULL
+      AND created_at < TIMESTAMPTZ '2026-08-15 19:52:31+00';
   `
 ];
 
