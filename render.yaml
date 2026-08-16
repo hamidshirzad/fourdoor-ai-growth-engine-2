@@ -1,120 +1,122 @@
-# Render blueprint for the Express API (backend/).
+# Render Blueprint for the Fourdoor AI Growth Engine production backend.
 #
-# The frontend is NOT deployed here — it is a Netlify site built from
-# `frontend/` (see netlify.toml). The two are separate services on separate
-# origins, which is why the frontend needs NEXT_PUBLIC_API_URL pointing at
-# whatever URL this service gets, and why this service needs CORS_ORIGIN
-# pointing back.
+# Creates three resources in Frankfurt:
+#   1. Express API web service
+#   2. Dedicated automation background worker
+#   3. Managed Render Postgres with PgBouncer
 #
-# Create via Render -> New -> Blueprint, pointed at this repository.
+# The frontend/control plane remains on Vercel. Do not put secrets in this file.
+
+previews:
+  generation: off
+
+databases:
+  - name: fourdoor-growth-db
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "17"
+    databaseName: fourdoor_growth
+    user: fourdoor_growth
+    connectionPool: pgbouncer
+    storageAutoscalingEnabled: true
+
 services:
   - type: web
-    name: fourdoor-ai-api
+    name: fourdoor-growth-api
     runtime: node
-    plan: free
+    plan: starter
+    region: frankfurt
+    repo: https://github.com/hamidshirzad/fourdoor-ai-growth-engine-2
+    branch: ops/control-plane-bridge
     rootDir: backend
     buildCommand: npm ci
-    # Migrations run on every boot. They are idempotent (CREATE TABLE IF NOT
-    # EXISTS / ADD COLUMN IF NOT EXISTS), and Render's free tier has no shell to
-    # run them from by hand.
-    #
-    # Any migration failure exits non-zero, so `&& npm start` is skipped and the
-    # deploy fails rather than booting the API against a half-applied schema.
-    # That matters because /health/ready checks database *connectivity*, not
-    # schema, so a partially migrated service would otherwise report healthy
-    # while routes failed on missing tables.
-    #
-    # Seeding is deliberately NOT here: `npm run seed` creates the demo account
-    # (demo@fourdoor.ai) whose password is published in this repo's docs. Run it
-    # once by hand if you want "Try Demo Mode" to work in production.
-    startCommand: npm run migrate && npm start
-    # Readiness fails when the database is unreachable, so a bad DATABASE_URL
-    # shows up as a failed deploy rather than a service that answers with an
-    # empty database.
+    # Database migrations belong in Render's paid pre-deploy phase, not in the
+    # process start command. A failed migration fails the deployment without
+    # putting the running service into a restart loop.
+    preDeployCommand: npm run migrate
+    startCommand: npm start
     healthCheckPath: /health/ready
     autoDeployTrigger: commit
+    maxShutdownDelaySeconds: 45
     envVars:
       - key: NODE_ENV
         value: production
-
-      # --- Required. sync:false means Render prompts for the value and it is
-      # never committed to git. ---
+      - key: ENVIRONMENT
+        value: production
       - key: DATABASE_URL
-        sync: false          # Neon POOLED URI (host contains "-pooler"), with
-                             # ?sslmode=verify-full&channel_binding=require
+        fromDatabase:
+          name: fourdoor-growth-db
+          property: connectionPoolString
+      - key: DATABASE_POOL_MIN
+        value: "0"
+      - key: DATABASE_POOL_MAX
+        value: "10"
       - key: JWT_SECRET
-        generateValue: true  # Render generates a strong secret on first deploy
+        generateValue: true
       - key: CORS_ORIGIN
         value: https://www.fourdoorai.com,https://fourdoorai.com
-      # Where the WorkOS SSO callback sends the user with their session token.
-      # The apex, not www: www currently serves / but 404s every other route,
-      # so an SSO login would land on a dead page. Both origins stay in
-      # CORS_ORIGIN above, which costs nothing once www is repaired.
       - key: FRONTEND_URL
         value: https://fourdoorai.com
 
-      # Neon scales its compute to zero; a non-zero idle floor would hold a
-      # connection open forever and keep it awake.
-      - key: DATABASE_POOL_MIN
-        value: "0"
-
-      # --- Stripe. Without STRIPE_WEBHOOK_SECRET no subscription can activate,
-      # by design: activation requires a signature-verified event. Register the
-      # endpoint at <this-service-url>/api/billing/stripe/webhook ---
-      - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false
-      - key: STRIPE_STARTER_PRICE_ID
-        sync: false
-      - key: STRIPE_PRO_PRICE_ID
-        sync: false
-      - key: STRIPE_AGENCY_PRICE_ID
+      # Shared HMAC secret for FourdoorAI Ops -> Growth Engine internal calls.
+      # Generate with: openssl rand -hex 32
+      # Set the identical value in the Vercel fourdooraiops Production env.
+      - key: FOURDOOR_INTERNAL_SHARED_SECRET
         sync: false
 
-      # --- Optional. Agents fall back to deterministic output without a key. ---
+      # Keep the API schedulers awake on the paid web service so campaigns can
+      # enqueue durable automation_jobs. Execution is handled by the worker.
+      - key: DISABLE_SCHEDULERS
+        value: "false"
+      - key: AUTOMATION_WORKER_ENABLED
+        value: "false"
+
+      # AI is optional at boot, but production agent execution should have this.
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
         value: gpt-4o-mini
 
-      # --- WorkOS. Optional, but the login page's "Continue with SSO" button is
-      # dead without it: /api/auth/sso/authorize returns 503 unless BOTH
-      # WORKOS_API_KEY and WORKOS_CLIENT_ID are set (isSsoEnabled() in
-      # workosService.js requires the client and the client id together).
-      #
-      # Leaving these unset is a supported state — password login works fine and
-      # every WorkOS call is a no-op. Set them only if you want SSO. ---
-      - key: WORKOS_API_KEY
-        sync: false
-      - key: WORKOS_CLIENT_ID
-        sync: false
-      # Must be THIS service's public URL + /api/auth/sso/callback, and must be
-      # registered identically in the WorkOS dashboard. It cannot be hardcoded
-      # here because the service URL is not known until Render creates it; the
-      # code falls back to localhost, which is wrong in production.
-      - key: WORKOS_REDIRECT_URI
-        sync: false
-      # Audit Log streaming only. Separate from SSO: logAgent() is a no-op
-      # without it even when SSO is fully working.
-      - key: WORKOS_ORGANIZATION_ID
-        sync: false
-
-      # --- Firestore mirror. Optional and off by default.
-      #
-      # The entire service account JSON, pasted as one value — Render has no
-      # filesystem to place a key file on, so the GOOGLE_APPLICATION_CREDENTIALS
-      # file-path form is not usable here.
-      #
-      # Unset means firestoreLogService.js leaves its client null and every
-      # mirror call returns null. Agent logs and automation jobs still live in
-      # Postgres, which is the store of record either way; the only thing lost is
-      # the Firestore projection. Do not set this expecting it to be required. ---
+      # Optional Firestore projection. Postgres remains the source of truth.
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false
 
-      # The three node-cron jobs start with the process. On the free plan the
-      # service sleeps when idle, so they will not fire on schedule — set this
-      # to "true" and drive them externally, or move to a paid instance.
-      - key: DISABLE_SCHEDULERS
-        value: "false"
+  - type: worker
+    name: fourdoor-growth-worker
+    runtime: node
+    plan: starter
+    region: frankfurt
+    repo: https://github.com/hamidshirzad/fourdoor-ai-growth-engine-2
+    branch: ops/control-plane-bridge
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm run worker
+    autoDeployTrigger: commit
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fourdoor-growth-db
+          property: connectionPoolString
+      - key: DATABASE_POOL_MIN
+        value: "0"
+      - key: DATABASE_POOL_MAX
+        value: "5"
+      - key: AUTOMATION_WORKER_ENABLED
+        value: "true"
+      - key: AUTOMATION_WORKER_BATCH_SIZE
+        value: "5"
+      - key: AUTOMATION_WORKER_POLL_MS
+        value: "30000"
+      - key: AUTOMATION_WORKER_STALE_LOCK_MINUTES
+        value: "30"
+      - key: AUTOMATION_LEAD_FOLLOW_UP_LIMIT
+        value: "5"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
